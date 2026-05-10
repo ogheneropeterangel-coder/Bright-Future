@@ -16,8 +16,8 @@ export default function StudentDashboard() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'table' | 'report'>('table');
-  const [selectedTerm, setSelectedTerm] = useState('First Term');
-  const [selectedSession, setSelectedSession] = useState(new Date().getFullYear() + '/' + (new Date().getFullYear() + 1));
+  const [selectedTerm, setSelectedTerm] = useState('');
+  const [selectedSession, setSelectedSession] = useState('');
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [classResults, setClassResults] = useState<any[]>([]);
   const [classStudents, setClassStudents] = useState<any[]>([]);
@@ -123,7 +123,14 @@ export default function StudentDashboard() {
     return `${year}/${year + 1}`;
   }), []);
 
-  const terms = ['First Term', 'Second Term', 'Third Term'];
+  const terms = ['1st', '2nd', '3rd'];
+
+  const getTermLabel = (term: string) => {
+    if (term === '1st') return '1st Term';
+    if (term === '2nd') return '2nd Term';
+    if (term === '3rd') return '3rd Term';
+    return term;
+  };
 
   useEffect(() => {
     async function fetchStudentData() {
@@ -137,10 +144,19 @@ export default function StudentDashboard() {
           supabase.from('students').select('*, class:classes(*)').eq('admission_number', profile.username).maybeSingle()
         ]);
 
+        let termToUse = selectedTerm;
+        let sessionToUse = selectedSession;
+
         if (settingsRes.data) {
           setSettings(settingsRes.data);
-          if (!selectedTerm) setSelectedTerm(settingsRes.data.current_term);
-          if (!selectedSession) setSelectedSession(settingsRes.data.current_session);
+          if (!selectedTerm) {
+            termToUse = settingsRes.data.current_term;
+            setSelectedTerm(termToUse);
+          }
+          if (!selectedSession) {
+            sessionToUse = settingsRes.data.current_session;
+            setSelectedSession(sessionToUse);
+          }
         }
 
         const student = studentRes.data;
@@ -159,12 +175,12 @@ export default function StudentDashboard() {
             annRes
           ] = await Promise.all([
             supabase.from('results').select('*, subject:subjects(*)').eq('student_id', student.id).order('created_at', { ascending: false }),
-            supabase.from('psychomotor_skills').select('*').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
-            supabase.from('results').select('student_id, subject_id, ca1_score, ca2_score, exam_score').eq('class_id', student.class_id).eq('term', selectedTerm).eq('session', selectedSession),
+            supabase.from('psychomotor_skills').select('*').eq('student_id', student.id).eq('term', termToUse).eq('session', sessionToUse).maybeSingle(),
+            supabase.from('results').select('student_id, subject_id, ca1_score, ca2_score, exam_score').eq('class_id', student.class_id).eq('term', termToUse).eq('session', sessionToUse),
             supabase.from('students').select('id').eq('class_id', student.class_id),
-            supabase.from('attendance').select('status').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession),
-            supabase.from('fee_records').select('*').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
-            supabase.from('fee_standards').select('amount').eq('class_id', student.class_id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
+            supabase.from('attendance').select('status').eq('student_id', student.id).eq('term', termToUse).eq('session', sessionToUse),
+            supabase.from('fee_records').select('*').eq('student_id', student.id).eq('term', termToUse).eq('session', sessionToUse).maybeSingle(),
+            supabase.from('fee_standards').select('amount').eq('class_id', student.class_id).eq('term', termToUse).eq('session', sessionToUse).maybeSingle(),
             supabase.from('announcements').select('*').or(`target_role.eq.all,target_role.eq.student`).limit(10)
           ]);
 
@@ -455,7 +471,7 @@ export default function StudentDashboard() {
                     onChange={(e) => setSelectedTerm(e.target.value)}
                     className="bg-transparent border-none text-sm font-bold text-slate-700 focus:ring-0 cursor-pointer px-3 py-1"
                   >
-                    {terms.map(t => <option key={t} value={t}>{t}</option>)}
+                    {terms.map(t => <option key={t} value={t}>{getTermLabel(t)}</option>)}
                   </select>
                 </div>
                 <button 
