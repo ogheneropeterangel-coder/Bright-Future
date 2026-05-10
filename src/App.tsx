@@ -1,42 +1,45 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Settings as SettingsIcon } from 'lucide-react';
 import { AuthProvider } from './context/AuthContext';
 import { Layout } from './components/Layout';
-import Login from './pages/Login';
-import Register from './pages/Register';
+import { DashboardSkeleton } from './components/ui/LoadingStates';
+
+// Auth Pages
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
 
 // Admin Pages
-import AdminDashboard from './pages/admin/Dashboard';
-import Students from './pages/admin/Students';
-import Teachers from './pages/admin/Teachers';
-import Classes from './pages/admin/Classes';
-import Subjects from './pages/admin/Subjects';
-import Results from './pages/admin/Results';
-import ExamPermits from './pages/admin/ExamPermits';
-import Promotion from './pages/admin/Promotion';
-import Attendance from './pages/admin/Attendance';
-import IDCards from './pages/admin/IDCards';
-import Transcript from './pages/admin/Transcript';
-import FeeStatusChecker from './pages/admin/FeeStatusChecker';
-import FeeStandards from './pages/admin/FeeStandards';
-import SettingsPage from './pages/admin/Settings';
+const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
+const Students = lazy(() => import('./pages/admin/Students'));
+const Teachers = lazy(() => import('./pages/admin/Teachers'));
+const Classes = lazy(() => import('./pages/admin/Classes'));
+const Subjects = lazy(() => import('./pages/admin/Subjects'));
+const Results = lazy(() => import('./pages/admin/Results'));
+const ExamPermits = lazy(() => import('./pages/admin/ExamPermits'));
+const Promotion = lazy(() => import('./pages/admin/Promotion'));
+const Attendance = lazy(() => import('./pages/admin/Attendance'));
+const IDCards = lazy(() => import('./pages/admin/IDCards'));
+const Transcript = lazy(() => import('./pages/admin/Transcript'));
+const FeeStatusChecker = lazy(() => import('./pages/admin/FeeStatusChecker'));
+const FeeStandards = lazy(() => import('./pages/admin/FeeStandards'));
+const SettingsPage = lazy(() => import('./pages/admin/Settings'));
 
 // Cashier Pages
-import CashierDashboard from './pages/cashier/Dashboard';
-import FeeManagement from './pages/cashier/FeeManagement';
-import DebtManagement from './pages/cashier/DebtManagement';
+const CashierDashboard = lazy(() => import('./pages/cashier/Dashboard'));
+const FeeManagement = lazy(() => import('./pages/cashier/FeeManagement'));
+const DebtManagement = lazy(() => import('./pages/cashier/DebtManagement'));
 
 // Teacher Pages
-import TeacherDashboard from './pages/teacher/Dashboard';
-import Scores from './pages/teacher/Scores';
-import TeacherAttendance from './pages/teacher/Attendance';
+const TeacherDashboard = lazy(() => import('./pages/teacher/Dashboard'));
+const Scores = lazy(() => import('./pages/teacher/Scores'));
+const TeacherAttendance = lazy(() => import('./pages/teacher/Attendance'));
 
 // Student Pages
-import StudentDashboard from './pages/student/Dashboard';
+const StudentDashboard = lazy(() => import('./pages/student/Dashboard'));
 
 // Exam Officer Pages
-import ExamOfficerDashboard from './pages/exam_officer/Dashboard';
+const ExamOfficerDashboard = lazy(() => import('./pages/exam_officer/Dashboard'));
 
 export default function App() {
   const isConfigured = (import.meta as any).env.VITE_SUPABASE_URL && (import.meta as any).env.VITE_SUPABASE_ANON_KEY;
@@ -76,51 +79,53 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          
-          <Route element={<Layout />}>
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/students" element={<Students />} />
-            <Route path="/admin/teachers" element={<Teachers />} />
-            <Route path="/admin/classes" element={<Classes />} />
-            <Route path="/admin/subjects" element={<Subjects />} />
-            <Route path="/admin/results" element={<Results />} />
-            <Route path="/admin/attendance" element={<Attendance />} />
-            <Route path="/admin/idcards" element={<IDCards />} />
-            <Route path="/admin/transcript" element={<Transcript />} />
-            <Route path="/admin/permits" element={<ExamPermits />} />
-            <Route path="/admin/promotion" element={<Promotion />} />
-            <Route path="/admin/scores" element={<Scores />} />
-            <Route path="/admin/fees" element={<FeeStatusChecker />} />
-            <Route path="/admin/fee-standards" element={<FeeStandards />} />
-            <Route path="/admin/settings" element={<SettingsPage />} />
+        <Suspense fallback={<DashboardSkeleton />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            
+            <Route element={<Layout />}>
+              {/* Admin Routes */}
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/students" element={<Students />} />
+              <Route path="/admin/teachers" element={<Teachers />} />
+              <Route path="/admin/classes" element={<Classes />} />
+              <Route path="/admin/subjects" element={<Subjects />} />
+              <Route path="/admin/results" element={<Results />} />
+              <Route path="/admin/attendance" element={<Attendance />} />
+              <Route path="/admin/idcards" element={<IDCards />} />
+              <Route path="/admin/transcript" element={<Transcript />} />
+              <Route path="/admin/permits" element={<ExamPermits />} />
+              <Route path="/admin/promotion" element={<Promotion />} />
+              <Route path="/admin/scores" element={<Scores />} />
+              <Route path="/admin/fees" element={<FeeStatusChecker />} />
+              <Route path="/admin/fee-standards" element={<FeeStandards />} />
+              <Route path="/admin/settings" element={<SettingsPage />} />
 
-            {/* Cashier Routes */}
-            <Route path="/cashier" element={<CashierDashboard />} />
-            <Route path="/cashier/fees" element={<FeeManagement />} />
-            <Route path="/cashier/debt" element={<DebtManagement />} />
-            <Route path="/cashier/fee-standards" element={<FeeStandards />} />
-            <Route path="/cashier/students" element={<Students />} />
+              {/* Cashier Routes */}
+              <Route path="/cashier" element={<CashierDashboard />} />
+              <Route path="/cashier/fees" element={<FeeManagement />} />
+              <Route path="/cashier/debt" element={<DebtManagement />} />
+              <Route path="/cashier/fee-standards" element={<FeeStandards />} />
+              <Route path="/cashier/students" element={<Students />} />
 
-            {/* Teacher Routes */}
-            <Route path="/teacher" element={<TeacherDashboard />} />
-            <Route path="/teacher/attendance" element={<TeacherAttendance />} />
-            <Route path="/teacher/scores" element={<Scores />} />
-            <Route path="/teacher/students" element={<Students />} />
-            <Route path="/teacher/results" element={<Results />} />
+              {/* Teacher Routes */}
+              <Route path="/teacher" element={<TeacherDashboard />} />
+              <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+              <Route path="/teacher/scores" element={<Scores />} />
+              <Route path="/teacher/students" element={<Students />} />
+              <Route path="/teacher/results" element={<Results />} />
 
-            {/* Student Routes */}
-            <Route path="/student" element={<StudentDashboard />} />
+              {/* Student Routes */}
+              <Route path="/student" element={<StudentDashboard />} />
 
-            {/* Exam Officer Routes */}
-            <Route path="/exam_officer" element={<ExamOfficerDashboard />} />
-          </Route>
+              {/* Exam Officer Routes */}
+              <Route path="/exam_officer" element={<ExamOfficerDashboard />} />
+            </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-        </Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );

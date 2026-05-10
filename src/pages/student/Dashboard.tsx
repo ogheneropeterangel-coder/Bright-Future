@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, School, TrendingUp, ClipboardList, Sparkles, GraduationCap, Printer, Filter, X, User, Trophy, Calendar, Activity, Heart, MessageSquare, Loader2, CheckCircle2, Lock, Wallet, Megaphone } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import AIHomeworkHelper from '../../components/AIHomeworkHelper';
 import { Announcement } from '../../types';
+import { DashboardSkeleton } from '../../components/ui/LoadingStates';
 
 export default function StudentDashboard() {
   const { profile } = useAuth();
@@ -30,24 +31,22 @@ export default function StudentDashboard() {
     const totalRequired = feeRecord?.total_amount ? Number(feeRecord.total_amount) : feeStandard;
     
     if (feeRecord) {
-      // UNPAID (Not Paid) means full portal restriction until payment begins
       if (feeRecord.status === 'Not Paid') {
         setIsRestricted(true);
       } else {
         setIsRestricted(false);
       }
     } else if (totalRequired > 0) {
-      // If no record exists but there's a fee standard, it's unpaid
       setIsRestricted(true);
     } else {
       setIsRestricted(false);
     }
   }, [feeRecord, feeStandard]);
 
-  const filteredResults = results.filter(r => 
+  const filteredResults = useMemo(() => results.filter(r => 
     r.term === selectedTerm && 
     r.session === selectedSession
-  );
+  ), [results, selectedTerm, selectedSession]);
 
   const calculateTotal = () => filteredResults.reduce((acc, curr) => acc + (curr.ca1_score + curr.ca2_score + curr.exam_score || 0), 0);
   const calculateAverage = () => {
@@ -119,10 +118,10 @@ export default function StudentDashboard() {
     return 'Fail';
   };
 
-  const sessions = Array.from({ length: 5 }, (_, i) => {
+  const sessions = useMemo(() => Array.from({ length: 5 }, (_, i) => {
     const year = new Date().getFullYear() - i;
     return `${year}/${year + 1}`;
-  });
+  }), []);
 
   const terms = ['First Term', 'Second Term', 'Third Term'];
 
@@ -131,109 +130,64 @@ export default function StudentDashboard() {
       if (!profile || !profile.username) return;
 
       try {
-        // Fetch settings first
-        const { data: settingsData } = await supabase.from('settings').select('*').single();
-        setSettings(settingsData);
-        if (settingsData?.current_term) setSelectedTerm(settingsData.current_term);
-        if (settingsData?.current_session) setSelectedSession(settingsData.current_session);
+        setLoading(true);
+        // Initial parallel fetches
+        const [settingsRes, studentRes] = await Promise.all([
+          supabase.from('settings').select('*').single(),
+          supabase.from('students').select('*, class:classes(*)').eq('admission_number', profile.username).maybeSingle()
+        ]);
 
-        // Find the student record associated with this user's username (admission number)
-        const { data: student, error: studentError } = await supabase
-          .from('students')
-          .select('*, class:classes(*)')
-          .eq('admission_number', profile.username)
-          .maybeSingle();
+        if (settingsRes.data) {
+          setSettings(settingsRes.data);
+          if (!selectedTerm) setSelectedTerm(settingsRes.data.current_term);
+          if (!selectedSession) setSelectedSession(settingsRes.data.current_session);
+        }
 
-        if (studentError) throw studentError;
-
+        const student = studentRes.data;
         if (student) {
           setStudentData(student);
           
-          // Fetch results for this student and filter out those with zero total score
-          const { data: resultsData } = await supabase
-            .from('results')
-            .select('*, subject:subjects(*)')
-            .eq('student_id', student.id)
-            .order('created_at', { ascending: false });
-          
-          const filteredResults = (resultsData || []).filter((r: any) => (r.ca1_score + r.ca2_score + r.exam_score) > 0);
+          // Parallelize all student-specific data
+          const [
+            resultsRes,
+            psychoRes,
+            classResultsRes,
+            classStudentsRes,
+            attendanceRes,
+            feeRes,
+            standardRes,
+            annRes
+          ] = await Promise.all([
+            supabase.from('results').select('*, subject:subjects(*)').eq('student_id', student.id).order('created_at', { ascending: false }),
+            supabase.from('psychomotor_skills').select('*').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
+            supabase.from('results').select('student_id, subject_id, ca1_score, ca2_score, exam_score').eq('class_id', student.class_id).eq('term', selectedTerm).eq('session', selectedSession),
+            supabase.from('students').select('id').eq('class_id', student.class_id),
+            supabase.from('attendance').select('status').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession),
+            supabase.from('fee_records').select('*').eq('student_id', student.id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
+            supabase.from('fee_standards').select('amount').eq('class_id', student.class_id).eq('term', selectedTerm).eq('session', selectedSession).maybeSingle(),
+            supabase.from('announcements').select('*').or(`target_role.eq.all,target_role.eq.student`).limit(10)
+          ]);
+
+          const filteredResults = (resultsRes.data || []).filter((r: any) => (r.ca1_score + r.ca2_score + r.exam_score) > 0);
           setResults(filteredResults);
-
-          // Fetch psychomotor skills
-          const { data: psychoData } = await supabase
-            .from('psychomotor_skills')
-            .select('*')
-            .eq('student_id', student.id)
-            .eq('term', selectedTerm)
-            .eq('session', selectedSession)
-            .maybeSingle();
-          setPsychomotor(psychoData);
-
-          // Fetch all results for this class to calculate position
-          const { data: classResultsData } = await supabase
-            .from('results')
-            .select('student_id, subject_id, ca1_score, ca2_score, exam_score')
-            .eq('class_id', student.class_id)
-            .eq('term', selectedTerm)
-            .eq('session', selectedSession);
-          setClassResults(classResultsData || []);
-
-          // Fetch all students in this class to ensure accurate ranking
-          const { data: classStudentsData } = await supabase
-            .from('students')
-            .select('id')
-            .eq('class_id', student.class_id);
-          setClassStudents(classStudentsData || []);
-
-          // Fetch attendance summary
-          const { data: attData } = await supabase
-            .from('attendance')
-            .select('status')
-            .eq('student_id', student.id)
-            .eq('term', selectedTerm)
-            .eq('session', selectedSession);
+          setPsychomotor(psychoRes.data);
+          setClassResults(classResultsRes.data || []);
+          setClassStudents(classStudentsRes.data || []);
           
-          if (attData) {
+          if (attendanceRes.data) {
             setAttendanceStats({
-              present: attData.filter(a => a.status === 'Present').length,
-              total: attData.length
+              present: attendanceRes.data.filter(a => a.status === 'Present').length,
+              total: attendanceRes.data.length
             });
           }
 
-          // Fetch fee status
-          const { data: feeData } = await supabase
-            .from('fee_records')
-            .select('*')
-            .eq('student_id', student.id)
-            .eq('term', selectedTerm)
-            .eq('session', selectedSession)
-            .maybeSingle();
-          setFeeRecord(feeData);
+          setFeeRecord(feeRes.data);
+          setFeeStandard(Number(standardRes.data?.amount || 0));
 
-          // Fetch fee standard for this student's class
-          const { data: standardData } = await supabase
-            .from('fee_standards')
-            .select('amount')
-            .eq('class_id', student.class_id)
-            .eq('term', selectedTerm)
-            .eq('session', selectedSession)
-            .maybeSingle();
-          setFeeStandard(Number(standardData?.amount || 0));
-
-          // Fetch announcements
-          const { data: annData } = await supabase
-            .from('announcements')
-            .select('*')
-            .or(`target_role.eq.all,target_role.eq.student`)
-            .or(`target_class_id.is.null,target_class_id.eq.${student.class_id}`)
-            .order('created_at', { ascending: false })
-            .limit(5);
-          
-          // Filter out class-specific announcements that aren't for THIS student's class (manual filter due to complex OR)
-          const finalAnnouncements = (annData || []).filter(a => 
+          // Filter announcements
+          const finalAnnouncements = (annRes.data || []).filter(a => 
             !a.target_class_id || a.target_class_id === student.class_id
-          );
-
+          ).slice(0, 5);
           setAnnouncements(finalAnnouncements);
         }
       } catch (error) {
@@ -246,15 +200,7 @@ export default function StudentDashboard() {
     fetchStudentData();
   }, [profile, selectedTerm, selectedSession]);
 
-  if (loading) return (
-    <div className="animate-pulse space-y-8 p-8">
-      <div className="h-10 bg-slate-200 rounded w-1/3"></div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[1,2,3].map(i => <div key={i} className="h-32 bg-slate-200 rounded-2xl"></div>)}
-      </div>
-      <div className="h-64 bg-slate-200 rounded-3xl"></div>
-    </div>
-  );
+  if (loading) return <DashboardSkeleton />;
 
   if (isRestricted && studentData) {
     return (

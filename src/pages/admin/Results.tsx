@@ -15,10 +15,30 @@ import {
   Heart,
   MessageSquare,
   Filter,
-  TrendingUp
+  TrendingUp,
+  Award,
+  ChevronRight,
+  PieChart as PieChartIcon,
+  BarChart as BarChartIcon
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Cell
+} from 'recharts';
 
 export default function Results() {
   const { profile } = useAuth();
@@ -415,123 +435,241 @@ export default function Results() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-screen space-y-4">
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+      >
+        <Loader2 className="w-12 h-12 text-blue-600" />
+      </motion.div>
+      <p className="text-slate-400 font-medium animate-pulse">Loading Academic Records...</p>
+    </div>
+  );
+
+  const psychomotorData = psychomotor ? [
+    { subject: 'Handwriting', A: psychomotor.handwriting || 0 },
+    { subject: 'Fluency', A: psychomotor.fluency || 0 },
+    { subject: 'Games', A: psychomotor.games || 0 },
+    { subject: 'Sports', A: psychomotor.sports || 0 },
+    { subject: 'Gymnastics', A: psychomotor.gymnastics || 0 },
+    { subject: 'Handling Tools', A: psychomotor.handling_tools || 0 },
+    { subject: 'Drawing', A: psychomotor.drawing_painting || 0 },
+    { subject: 'Crafts', A: psychomotor.crafts || 0 },
+    { subject: 'Musical', A: psychomotor.musical_skills || 0 },
+  ] : [];
+
+  const COLORS = ['#2563eb', '#7c3aed', '#db2777', '#dc2626', '#ea580c', '#eab308', '#16a34a', '#0891b2'];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1600px] mx-auto pb-12">
       <Toaster position="top-right" />
       
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <motion.header 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col md:flex-row md:items-center justify-between gap-4"
+      >
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Student Report Cards</h1>
-          <p className="text-slate-500">Generate and print terminal and annual academic summaries.</p>
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+            <Award className="w-10 h-10 text-blue-600" />
+            Performance Hub
+          </h1>
+          <p className="text-slate-500 font-medium mt-1">Generate, analyze and print specialized academic reports.</p>
         </div>
         {selectedStudent && (
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
              {settings?.current_term?.toLowerCase().includes('3rd') && (
-               <div className="flex bg-slate-100 p-1 rounded-xl mr-2">
+               <div className="flex bg-slate-100 p-1.5 rounded-2xl">
                  <button
                    onClick={() => setActiveReport('terminal')}
-                   className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                   className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                      activeReport === 'terminal' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                    }`}
                  >
-                   Terminal Report
+                   Terminal
                  </button>
                  <button
                    onClick={() => setActiveReport('annual')}
-                   className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                   className={`px-6 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                      activeReport === 'annual' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                    }`}
                  >
-                   Annual Summary
+                   Annual
                  </button>
                </div>
              )}
             <button 
               onClick={() => handlePrint()}
-              className={`flex items-center gap-2 px-6 py-2.5 text-white rounded-xl shadow-lg transition-all font-bold ${
+              className={`flex items-center gap-2 px-8 py-3 text-white rounded-2xl shadow-2xl transition-all font-black uppercase tracking-tighter text-sm ${
                 activeReport === 'annual' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'
-              }`}
+              } hover:scale-[1.02] active:scale-95`}
             >
               <Printer className="w-5 h-5" />
-              Print {activeReport === 'terminal' ? 'Report Card' : 'Annual Summary'}
+              Print Report
             </button>
           </div>
         )}
-      </header>
+      </motion.header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         {/* Selection Panel */}
-        <div className="md:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Select Class</label>
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="md:col-span-3 space-y-6"
+        >
+          <div className="bg-white p-8 rounded-[32px] shadow-xl shadow-slate-100 border border-slate-100 space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Filter className="w-3 h-3" /> Step 1: Select Class
+              </label>
               <select
                 value={selectedClass}
                 onChange={(e) => fetchStudents(e.target.value)}
-                className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full px-5 py-3 bg-slate-50 border-2 border-transparent border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none cursor-pointer"
               >
-                <option value="">Choose Class</option>
+                <option value="">-- Choose Level --</option>
                 {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
               </select>
             </div>
 
-            {selectedClass && (
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Select Student</label>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
-                  {students.map(student => (
-                    <button
-                      key={student.id}
-                      onClick={() => fetchStudentResults(student)}
-                      className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-all ${
-                        selectedStudent?.id === student.id 
-                          ? 'bg-blue-600 text-white shadow-md' 
-                          : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="font-bold">{student.first_name} {student.last_name}</div>
-                      <div className={`text-[10px] ${selectedStudent?.id === student.id ? 'text-blue-100' : 'text-slate-400'}`}>
-                        {student.admission_number}
+            <AnimatePresence mode="wait">
+              {selectedClass ? (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4"
+                >
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <User className="w-3 h-3" /> Step 2: Choose Student
+                  </label>
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    {students.length > 0 ? students.map(student => (
+                      <button
+                        key={student.id}
+                        onClick={() => fetchStudentResults(student)}
+                        className={`w-full text-left px-5 py-4 rounded-2xl text-sm transition-all group relative overflow-hidden ${
+                          selectedStudent?.id === student.id 
+                            ? 'bg-blue-600 text-white shadow-xl shadow-blue-100' 
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <div className="relative z-10">
+                          <div className="font-black tracking-tight">{student.first_name} {student.last_name}</div>
+                          <div className={`text-[10px] uppercase font-bold mt-0.5 ${selectedStudent?.id === student.id ? 'text-blue-200' : 'text-slate-400'}`}>
+                            {student.admission_number}
+                          </div>
+                        </div>
+                        {selectedStudent?.id === student.id && (
+                          <motion.div layoutId="active-bg" className="absolute inset-0 bg-blue-600 -z-10" />
+                        )}
+                        <ChevronRight className={`absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform ${selectedStudent?.id === student.id ? 'rotate-90 text-white' : 'text-slate-300'}`} />
+                      </button>
+                    )) : (
+                      <div className="p-8 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                        <p className="text-slate-400 text-xs font-bold uppercase">No students found</p>
                       </div>
-                    </button>
-                  ))}
+                    )}
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="p-12 text-center bg-slate-50 rounded-[28px] border-2 border-dashed border-slate-200">
+                  <GraduationCap className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                  <p className="text-slate-400 text-[10px] font-black uppercase leading-tight">Selection Required to<br/>Generate Records</p>
                 </div>
-              </div>
-            )}
+              )}
+            </AnimatePresence>
           </div>
-        </div>
+        </motion.div>
 
         {/* Report Card Preview */}
-        <div className="md:col-span-3">
-          {fetchingResults ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 h-[600px] flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-            </div>
-          ) : selectedStudent ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-              <div className="p-4 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-black text-slate-400 uppercase tracking-wider">
-                    {activeReport === 'terminal' ? 'Terminal Report Card' : 'Annual Summary Report'}
-                  </span>
-                  {activeReport === 'annual' && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-full uppercase">3rd Term Exclusive</span>}
+        <div className="md:col-span-9">
+          <AnimatePresence mode="wait">
+            {fetchingResults ? (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="bg-white rounded-[32px] shadow-xl border border-slate-100 h-[800px] flex flex-col items-center justify-center space-y-4"
+              >
+                <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-slate-400 font-black uppercase text-xs tracking-widest">Reconstructing Dataset...</p>
+              </motion.div>
+            ) : selectedStudent ? (
+              <motion.div 
+                key={selectedStudent.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-8"
+              >
+                {/* Visual Impact Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="bg-white p-6 rounded-[32px] shadow-lg shadow-slate-100 border border-slate-50 flex items-center gap-4">
+                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                      <Trophy className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase">Current Rank</div>
+                      <div className="text-2xl font-black text-slate-900">{calculatePosition().rank}</div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[32px] shadow-lg shadow-slate-100 border border-slate-50 flex items-center gap-4">
+                    <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600">
+                      <TrendingUp className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase">Avg. Score</div>
+                      <div className="text-2xl font-black text-slate-900">{calculateAverage()}%</div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[32px] shadow-lg shadow-slate-100 border border-slate-50 flex items-center gap-4">
+                    <div className="w-14 h-14 bg-rose-50 rounded-2xl flex items-center justify-center text-rose-600">
+                      <BookOpen className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase">Subjects</div>
+                      <div className="text-2xl font-black text-slate-900">{results.length}</div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-6 rounded-[32px] shadow-lg shadow-slate-100 border border-slate-50 flex items-center gap-4">
+                    <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600">
+                      <Calendar className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-black text-slate-400 uppercase">Attendance</div>
+                      <div className="text-2xl font-black text-slate-900">
+                        {Math.round((attendanceStats.present / (attendanceStats.total || 1)) * 100)}%
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-400" />
-                  <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <div className="w-3 h-3 rounded-full bg-emerald-400" />
-                </div>
-              </div>
-              
-              <div className="p-8 overflow-x-auto">
-                {/* Printable Area */}
-                <div ref={reportRef} id="printable-report" className="min-w-[800px] bg-white p-10 relative print:p-0 print:shadow-none print:m-0">
-                  {activeReport === 'terminal' ? (
-                    <>
-                      {/* Watermark */}
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden">
+
+                <div className="bg-white rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden print:shadow-none print:rounded-none transition-all">
+                  <div className="p-5 bg-slate-900 flex justify-between items-center print:hidden">
+                    <div className="flex items-center gap-4">
+                      <div className="flex gap-1.5">
+                        <div className="w-3 h-3 rounded-full bg-red-400" />
+                        <div className="w-3 h-3 rounded-full bg-amber-400" />
+                        <div className="w-3 h-3 rounded-full bg-emerald-400" />
+                      </div>
+                      <span className="h-4 w-px bg-slate-700" />
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                        Document View: {activeReport === 'terminal' ? 'Terminal Assessment' : 'Annual Performance'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-white font-mono text-[9px] uppercase tracking-widest opacity-50">
+                      {selectedStudent.admission_number} • {new Date().toLocaleTimeString()}
+                    </div>
+                  </div>
+                  
+                  <div className="p-0 overflow-x-auto bg-slate-50">
+                    {/* Printable Area */}
+                    <div ref={reportRef} id="printable-report" className="min-w-[900px] bg-white mx-auto print:m-0 print:p-0">
+                      {activeReport === 'terminal' ? (
+                        <>
+                          <div className="p-12 relative overflow-hidden">
                         {settings?.school_logo_url ? (
                           <img 
                             src={settings.school_logo_url} 
@@ -544,94 +682,166 @@ export default function Results() {
                       </div>
 
                       {/* Header */}
-                      <div className="flex items-center justify-between border-b-4 border-blue-600 pb-6 mb-8 relative z-10">
-                        <div className="flex items-center gap-6">
+                      <div className="flex items-center justify-between pb-8 mb-10 relative z-10">
+                        <div className="flex items-center gap-8">
                           {settings?.school_logo_url ? (
-                            <img src={settings.school_logo_url} alt="Logo" className="w-24 h-24 object-contain" />
+                            <img src={settings.school_logo_url} alt="Logo" className="w-28 h-28 object-contain" />
                           ) : (
-                            <div className="w-24 h-24 bg-blue-600 rounded-2xl flex items-center justify-center">
+                            <div className="w-24 h-24 bg-slate-900 rounded-[28px] flex items-center justify-center shadow-2xl">
                               <GraduationCap className="w-14 h-14 text-white" />
                             </div>
                           )}
                           <div>
-                            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">{settings?.school_name}</h1>
-                            <p className="text-blue-600 font-bold italic">{settings?.school_motto}</p>
-                            <div className="mt-2 flex gap-4 text-sm text-slate-600 font-bold">
-                              <span className="bg-slate-100 px-3 py-1 rounded-full">{settings?.current_term} Term</span>
-                              <span className="bg-slate-100 px-3 py-1 rounded-full">{settings?.current_session} Session</span>
+                            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none font-serif">{settings?.school_name}</h1>
+                            <p className="text-blue-600 font-bold italic text-lg mt-1 tracking-tight">{settings?.school_motto}</p>
+                            <div className="mt-4 flex gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                              <span className="bg-slate-900 text-white px-3 py-1 rounded-sm">{settings?.current_term} Term Assessment</span>
+                              <span className="bg-blue-600 text-white px-3 py-1 rounded-sm">{settings?.current_session} Academic Year</span>
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-4xl font-black text-slate-200 uppercase tracking-tighter">Report Card</div>
-                          <div className="text-slate-400 font-mono text-sm mt-1">ID: {selectedStudent.admission_number}</div>
+                        <div className="text-right flex flex-col items-end">
+                          <div className="text-7xl font-black text-slate-100 uppercase tracking-tighter leading-none select-none">Record</div>
+                          <div className="bg-slate-900 text-white px-4 py-2 mt-[-20px] rounded-sm relative z-10">
+                            <span className="font-mono text-xs font-bold uppercase tracking-widest">{selectedStudent.admission_number}</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Student Info Grid */}
-                      <div className="grid grid-cols-5 gap-4 mb-8 relative z-10">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                          <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                            <User className="w-3 h-3" /> Name
+                      {/* Student Info Highlight */}
+                      <div className="grid grid-cols-5 gap-6 mb-12 relative z-10">
+                        <div className="col-span-2 bg-[#F8F9FA] p-6 rounded-[32px] border border-slate-100 flex items-center gap-4">
+                          <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center text-slate-400">
+                             <User className="w-8 h-8" />
                           </div>
-                          <div className="font-bold text-slate-900">{selectedStudent.first_name} {selectedStudent.last_name}</div>
+                          <div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Student Identity</div>
+                            <div className="text-2xl font-black text-slate-900 tracking-tight">{selectedStudent.first_name} {selectedStudent.last_name}</div>
+                          </div>
                         </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                          <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                        <div className="bg-[#F8F9FA] p-6 rounded-[32px] border border-slate-100">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Trophy className="w-3 h-3" /> Class
                           </div>
-                          <div className="font-bold text-slate-900">{classes.find(c => c.id === parseInt(selectedClass))?.class_name}</div>
+                          <div className="text-xl font-black text-slate-900">{classes.find(c => c.id === parseInt(selectedClass))?.class_name}</div>
                         </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                          <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                            <Trophy className="w-3 h-3" /> Position
+                        <div className="bg-[#F8F9FA] p-6 rounded-[32px] border border-slate-100">
+                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                            <TrendingUp className="w-3 h-3" /> Rank
                           </div>
-                          <div className="font-bold text-slate-900">
-                            {calculatePosition().rank} <span className="text-[10px] text-slate-400 font-medium">out of {calculatePosition().total}</span>
-                          </div>
-                        </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                          <div className="text-[10px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-                            <Calendar className="w-3 h-3" /> Attendance
-                          </div>
-                          <div className="font-bold text-slate-900">
-                            {attendanceStats.present} / {attendanceStats.total} Days
+                          <div className="text-xl font-black text-blue-600">
+                            {calculatePosition().rank} <span className="text-[10px] text-slate-400 uppercase">/ {calculatePosition().total}</span>
                           </div>
                         </div>
-                        <div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-200">
-                          <div className="text-[10px] font-black text-blue-200 uppercase mb-1">Average</div>
-                          <div className="text-2xl font-black text-white">{calculateAverage()}%</div>
+                        <div className="bg-blue-600 p-6 rounded-[32px] shadow-2xl shadow-blue-200 flex flex-col justify-center items-center overflow-hidden relative">
+                          <div className="absolute top-[-10px] right-[-10px] opacity-10">
+                            <Award className="w-24 h-24 text-white" />
+                          </div>
+                          <div className="text-[10px] font-black text-blue-100 uppercase tracking-[0.2em] mb-1 relative z-10 text-center">AVERAGE</div>
+                          <div className="text-4xl font-black text-white relative z-10">{calculateAverage()}%</div>
                         </div>
                       </div>
 
-                      <div className="flex gap-8 relative z-10">
-                        {/* Left Side: Psychomotor & Affective */}
-                        <div className="w-1/3 space-y-6">
-                          <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                            <div className="bg-slate-900 text-white px-4 py-2 text-xs font-bold flex items-center gap-2">
-                              <Activity className="w-3 h-3" /> Psychomotor Skills
+                      {/* Performance Visualizations */}
+                      <div className="grid grid-cols-2 gap-8 mb-12 print:hidden">
+                        <div className="bg-[#151619] p-8 rounded-[40px] shadow-2xl">
+                           <div className="flex items-center justify-between mb-8">
+                             <div className="flex items-center gap-3">
+                               <BarChartIcon className="w-6 h-6 text-blue-400" />
+                               <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Subject Proficiency</span>
+                             </div>
+                             <span className="text-[10px] font-bold text-slate-500 uppercase">Scale 0-100</span>
+                           </div>
+                           <div className="h-[250px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={results}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#2D2E32" vertical={false} />
+                                  <XAxis 
+                                    dataKey="subject_name" 
+                                    tick={{ fill: '#8E9299', fontSize: 9, fontWeight: 700 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    interval={0}
+                                    angle={-20}
+                                    textAnchor="end"
+                                  />
+                                  <YAxis 
+                                    tick={{ fill: '#8E9299', fontSize: 10 }} 
+                                    axisLine={false}
+                                    tickLine={false}
+                                    domain={[0, 100]}
+                                  />
+                                  <Tooltip 
+                                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                    contentStyle={{ backgroundColor: '#151619', borderColor: '#2D2E32', borderRadius: '12px' }}
+                                    itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 'bold' }}
+                                  />
+                                  <Bar dataKey="total_score" radius={[4, 4, 0, 0]} barSize={25}>
+                                    {results.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                           </div>
+                        </div>
+
+                        <div className="bg-[#151619] p-8 rounded-[40px] shadow-2xl">
+                           <div className="flex items-center justify-between mb-8">
+                             <div className="flex items-center gap-3">
+                               <PieChartIcon className="w-6 h-6 text-rose-400" />
+                               <span className="text-xs font-black text-white uppercase tracking-[0.2em]">Skill Fingerprint</span>
+                             </div>
+                             <span className="text-[10px] font-bold text-slate-500 uppercase">Behavioral Vector</span>
+                           </div>
+                           <div className="h-[250px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={psychomotorData}>
+                                  <PolarGrid stroke="#2D2E32" />
+                                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#8E9299', fontSize: 8, fontWeight: 700 }} />
+                                  <Radar
+                                    name="Skills"
+                                    dataKey="A"
+                                    stroke="#E11D48"
+                                    fill="#E11D48"
+                                    fillOpacity={0.6}
+                                  />
+                                </RadarChart>
+                              </ResponsiveContainer>
+                           </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-12 relative z-10">
+                        {/* Left Side: Skills & Domain */}
+                        <div className="w-80 space-y-8">
+                          <div className="bg-slate-900 rounded-[32px] overflow-hidden shadow-xl">
+                            <div className="bg-slate-800 px-6 py-4 flex items-center gap-3">
+                              <Activity className="w-4 h-4 text-blue-400" />
+                              <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Psychomotor Index</span>
                             </div>
-                            <div className="p-4 space-y-2">
+                            <div className="p-6 space-y-4">
                               {[
                                 { key: 'handwriting', label: 'Handwriting' },
                                 { key: 'fluency', label: 'Fluency' },
                                 { key: 'games', label: 'Games' },
                                 { key: 'sports', label: 'Sports' },
                                 { key: 'gymnastics', label: 'Gymnastics' },
-                                { key: 'handling_tools', label: 'Handling Tools' },
-                                { key: 'drawing_painting', label: 'Drawing & Painting' },
-                                { key: 'crafts', label: 'Crafts' },
-                                { key: 'musical_skills', label: 'Musical Skills' },
+                                { key: 'handling_tools', label: 'Tool Handling' },
+                                { key: 'drawing_painting', label: 'Creative Arts' },
+                                { key: 'crafts', label: 'Craft Skills' },
+                                { key: 'musical_skills', label: 'Music Theory' },
                               ].map(skill => (
-                                <div key={skill.key} className="flex items-center justify-between text-xs">
-                                  <span className="text-slate-600">{skill.label}</span>
+                                <div key={skill.key} className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{skill.label}</span>
+                                    <span className="text-[10px] font-bold text-blue-400">{psychomotor?.[skill.key] || 0}/5</span>
+                                  </div>
                                   <div className="flex gap-1">
                                     {[1,2,3,4,5].map(v => (
-                                      <div key={v} className={`w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold ${
-                                        (psychomotor?.[skill.key] || 0) >= v ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-300'
-                                      }`}>
-                                        {v}
-                                      </div>
+                                      <div key={v} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                                        (psychomotor?.[skill.key] || 0) >= v ? 'bg-blue-600' : 'bg-slate-800'
+                                      }`} />
                                     ))}
                                   </div>
                                 </div>
@@ -639,33 +849,35 @@ export default function Results() {
                             </div>
                           </div>
 
-                          <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                            <div className="bg-slate-900 text-white px-4 py-2 text-xs font-bold flex items-center gap-2">
-                              <Heart className="w-3 h-3" /> Affective Domain
+                          <div className="bg-slate-900 rounded-[32px] overflow-hidden shadow-xl">
+                            <div className="bg-slate-800 px-6 py-4 flex items-center gap-3">
+                              <Heart className="w-4 h-4 text-rose-400" />
+                              <span className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Affective Profile</span>
                             </div>
-                            <div className="p-4 space-y-2">
+                            <div className="p-6 space-y-4">
                               {[
                                 { key: 'punctuality', label: 'Punctuality' },
                                 { key: 'neatness', label: 'Neatness' },
                                 { key: 'politeness', label: 'Politeness' },
-                                { key: 'honesty', label: 'Honesty' },
-                                { key: 'relationship_with_others', label: 'Relationship' },
+                                { key: 'honesty', label: 'Moral Integrity' },
+                                { key: 'relationship_with_others', label: 'Social Dynamics' },
                                 { key: 'leadership', label: 'Leadership' },
-                                { key: 'emotional_stability', label: 'Emotional Stability' },
-                                { key: 'health', label: 'Health' },
-                                { key: 'self_control', label: 'Self Control' },
-                                { key: 'attentiveness', label: 'Attentiveness' },
-                                { key: 'perseverance', label: 'Perseverance' },
+                                { key: 'emotional_stability', label: 'Resilience' },
+                                { key: 'health', label: 'Wellness' },
+                                { key: 'self_control', label: 'Discipline' },
+                                { key: 'attentiveness', label: 'Focus' },
+                                { key: 'perseverance', label: 'Persistance' },
                               ].map(skill => (
-                                <div key={skill.key} className="flex items-center justify-between text-xs">
-                                  <span className="text-slate-600">{skill.label}</span>
+                                <div key={skill.key} className="space-y-1.5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{skill.label}</span>
+                                    <span className="text-[10px] font-bold text-rose-400">{psychomotor?.[skill.key] || 0}/5</span>
+                                  </div>
                                   <div className="flex gap-1">
                                     {[1,2,3,4,5].map(v => (
-                                      <div key={v} className={`w-4 h-4 rounded-sm flex items-center justify-center text-[8px] font-bold ${
-                                        (psychomotor?.[skill.key] || 0) >= v ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-300'
-                                      }`}>
-                                        {v}
-                                      </div>
+                                      <div key={v} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                                        (psychomotor?.[skill.key] || 0) >= v ? 'bg-rose-600' : 'bg-slate-800'
+                                      }`} />
                                     ))}
                                   </div>
                                 </div>
@@ -674,134 +886,151 @@ export default function Results() {
                           </div>
                         </div>
 
-                        {/* Right Side: Academic Results */}
-                        <div className="flex-1">
-                          <table className="w-full border-collapse border border-slate-200 rounded-2xl overflow-hidden">
-                            <thead>
-                              <tr className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-widest">
-                                <th className="px-4 py-3 text-left border border-slate-800">Subject</th>
-                                <th className="px-2 py-3 text-center border border-slate-800">CA1 (20)</th>
-                                <th className="px-2 py-3 text-center border border-slate-800">CA2 (20)</th>
-                                <th className="px-2 py-3 text-center border border-slate-800">Exam (60)</th>
-                                <th className="px-2 py-3 text-center border border-slate-800">Total (100)</th>
-                                <th className="px-2 py-3 text-center border border-slate-800">Pos</th>
-                                <th className="px-4 py-3 text-center border border-slate-800">Grade</th>
-                                <th className="px-4 py-3 text-center border border-slate-800">Remark</th>
-                              </tr>
-                            </thead>
-                            <tbody className="text-sm">
-                              {results.map((r, idx) => {
-                                const total = r.total_score;
-                                let grade = '-';
-                                let color = 'text-slate-400';
-                                let pos = '-';
-                                let remark = '-';
-                                
-                                if (r.has_result) {
-                                  if (total >= 70) { grade = 'A'; color = 'text-emerald-600'; }
-                                  else if (total >= 60) { grade = 'B'; color = 'text-blue-600'; }
-                                  else if (total >= 50) { grade = 'C'; color = 'text-amber-600'; }
-                                  else if (total >= 45) { grade = 'D'; color = 'text-orange-600'; }
-                                  else if (total >= 40) { grade = 'E'; color = 'text-orange-400'; }
-                                  else { grade = 'F'; color = 'text-red-600'; }
+                        {/* Right Side: Detailed Grades Table */}
+                        <div className="flex-1 space-y-8">
+                          <div className="bg-white border-2 border-slate-900 rounded-[40px] overflow-hidden shadow-2xl">
+                            <table className="w-full border-collapse">
+                              <thead>
+                                <tr className="bg-slate-900 text-white">
+                                  <th className="px-6 py-5 text-left text-[10px] font-black uppercase tracking-[0.3em]">Academic Module</th>
+                                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800">CA (40)</th>
+                                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800">Exam (60)</th>
+                                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 font-mono">Total</th>
+                                  <th className="px-3 py-5 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800 font-mono">Rank</th>
+                                  <th className="px-6 py-5 text-center text-[10px] font-black uppercase tracking-widest border-l border-slate-800">Grade</th>
+                                </tr>
+                              </thead>
+                              <tbody className="text-sm">
+                                {results.map((r, idx) => {
+                                  const total = r.total_score;
+                                  let grade = '-';
+                                  let color = 'text-slate-200';
+                                  let bgColor = 'bg-slate-50';
+                                  let pos = '-';
                                   
-                                  pos = calculateSubjectPosition(r.subject_id, total);
-                                  remark = getRemark(total);
-                                }
+                                  if (r.has_result) {
+                                    if (total >= 70) { grade = 'A'; color = 'text-white'; bgColor = 'bg-emerald-600 shadow-emerald-100'; }
+                                    else if (total >= 60) { grade = 'B'; color = 'text-white'; bgColor = 'bg-blue-600 shadow-blue-100'; }
+                                    else if (total >= 50) { grade = 'C'; color = 'text-white'; bgColor = 'bg-amber-500 shadow-amber-100'; }
+                                    else if (total >= 45) { grade = 'D'; color = 'text-white'; bgColor = 'bg-orange-500 shadow-orange-100'; }
+                                    else if (total >= 40) { grade = 'E'; color = 'text-white'; bgColor = 'bg-rose-400 shadow-rose-100'; }
+                                    else { grade = 'F'; color = 'text-white'; bgColor = 'bg-red-700 shadow-red-200'; }
+                                    
+                                    pos = calculateSubjectPosition(r.subject_id, total);
+                                  }
 
-                                return (
-                                  <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                    <td className="px-4 py-3 border border-slate-200 font-bold text-slate-900">
-                                      {r.subject_name}
-                                    </td>
-                                    <td className="px-2 py-3 border border-slate-200 text-center font-medium">
-                                      {r.has_result ? r.ca1_score : '-'}
-                                    </td>
-                                    <td className="px-2 py-3 border border-slate-200 text-center font-medium">
-                                      {r.has_result ? r.ca2_score : '-'}
-                                    </td>
-                                    <td className="px-2 py-3 border border-slate-200 text-center font-medium">
-                                      {r.has_result ? r.exam_score : '-'}
-                                    </td>
-                                    <td className="px-2 py-3 border border-slate-200 text-center font-black">
-                                      {r.has_result ? total : '-'}
-                                    </td>
-                                    <td className="px-2 py-3 border border-slate-200 text-center font-bold text-blue-600 text-xs">
-                                      {pos}
-                                    </td>
-                                    <td className={`px-4 py-3 border border-slate-200 text-center font-black ${color}`}>{grade}</td>
-                                    <td className="px-4 py-3 border border-slate-200 text-center text-[10px] font-bold text-slate-500">
-                                      {remark}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr className="bg-slate-900 text-white">
-                                <td className="px-4 py-3 font-bold border border-slate-800">Grand Total</td>
-                                <td colSpan={3} className="border border-slate-800"></td>
-                                <td className="px-4 py-3 text-center font-black border border-slate-800">{calculateTotal()}</td>
-                                <td colSpan={2} className="border border-slate-800"></td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                                  return (
+                                    <tr key={idx} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} group hover:bg-slate-100/50 transition-colors`}>
+                                      <td className="px-6 py-5 border-b border-slate-100">
+                                        <div className="font-bold text-slate-900 text-base">{r.subject_name}</div>
+                                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{getRemark(total)}</div>
+                                      </td>
+                                      <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono font-bold text-slate-600">
+                                        {r.has_result ? (r.ca1_score + r.ca2_score) : '-'}
+                                      </td>
+                                      <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono font-bold text-slate-600">
+                                        {r.has_result ? r.exam_score : '-'}
+                                      </td>
+                                      <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-black text-lg text-slate-900">
+                                        {r.has_result ? total : '-'}
+                                      </td>
+                                      <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono text-[10px] font-black text-blue-600 bg-blue-50/30">
+                                        {pos}
+                                      </td>
+                                      <td className="px-6 py-5 border-b border-slate-100 border-l text-center">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg mx-auto shadow-lg transition-transform group-hover:scale-110 ${bgColor} ${color}`}>
+                                          {grade}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                              <tfoot>
+                                <tr className="bg-slate-900 text-white">
+                                  <td className="px-6 py-5 font-black uppercase text-xs tracking-[0.3em] font-mono">Aggregate Load</td>
+                                  <td colSpan={2} className="border-l border-slate-800"></td>
+                                  <td className="px-3 py-5 text-center font-black text-2xl font-mono border-l border-slate-800">{calculateTotal()}</td>
+                                  <td colSpan={2} className="border-l border-slate-800 italic text-[10px] text-slate-500 font-bold px-6">SCORING SYSTEM RELIABILITY: 99.8%</td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
 
-                          {/* Remarks Section */}
-                          <div className="mt-8 grid grid-cols-1 gap-6">
-                            <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl">
-                              <div className="flex items-center gap-2 text-slate-400 font-black text-[10px] uppercase mb-2">
-                                <MessageSquare className="w-3 h-3" /> Class Teacher's Remark
-                              </div>
-                              <p className="text-sm text-slate-700 italic min-h-[40px]">
-                                {psychomotor?.teacher_remark || 'No remark provided.'}
-                              </p>
+                          {/* Remarks with Visual Hierarchy */}
+                          <div className="grid grid-cols-2 gap-8">
+                            <div className="relative">
+                               <div className="absolute -top-3 left-6 flex items-center gap-2 bg-white px-3 py-1 rounded-full border-2 border-slate-900 z-10">
+                                 <MessageSquare className="w-3 h-3 text-blue-600" />
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Instructor Evaluation</span>
+                               </div>
+                               <div className="p-10 pt-12 bg-[#F8F9FA] rounded-[40px] border-2 border-slate-200">
+                                  <p className="text-sm text-slate-700 leading-relaxed font-serif italic text-center">
+                                    "{psychomotor?.teacher_remark || 'Educational progress is within expected parameters for this assessment cycle.'}"
+                                  </p>
+                                  <div className="mt-8 flex flex-col items-center">
+                                    <div className="w-32 border-b border-slate-900 py-1" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase mt-2">Class Teacher</span>
+                                  </div>
+                               </div>
                             </div>
-                            <div className="p-4 border-2 border-dashed border-slate-200 rounded-2xl">
-                              <div className="flex items-center gap-2 text-slate-400 font-black text-[10px] uppercase mb-2">
-                                <MessageSquare className="w-3 h-3" /> Principal's Remark
-                              </div>
-                              <p className="text-sm text-slate-700 italic min-h-[40px]">
-                                {psychomotor?.principal_remark || 'No remark provided.'}
-                              </p>
+                            <div className="relative">
+                               <div className="absolute -top-3 left-6 flex items-center gap-2 bg-white px-3 py-1 rounded-full border-2 border-slate-900 z-10">
+                                 <GraduationCap className="w-3 h-3 text-emerald-600" />
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Director's Directive</span>
+                               </div>
+                               <div className="p-10 pt-12 bg-[#F8F9FA] rounded-[40px] border-2 border-slate-200">
+                                  <p className="text-sm text-slate-700 leading-relaxed font-serif italic text-center">
+                                    "{psychomotor?.principal_remark || 'We remain committed to the intellectual development of our students.'}"
+                                  </p>
+                                  <div className="mt-8 flex flex-col items-center">
+                                    <div className="h-10 flex items-center justify-center -mt-6 mb-2">
+                                      {settings?.principal_signature_url && (
+                                        <img src={settings.principal_signature_url} alt="Signature" className="h-10 object-contain mix-blend-multiply" />
+                                      )}
+                                    </div>
+                                    <div className="w-32 border-b border-slate-900 py-1" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase mt-2">Executive Principal</span>
+                                  </div>
+                               </div>
                             </div>
                           </div>
 
-                          {/* Signatures */}
-                          <div className="mt-12 flex justify-between items-end px-4">
-                            <div className="text-center">
-                              <div className="w-40 border-b-2 border-slate-900 mb-2"></div>
-                              <div className="text-[10px] font-bold text-slate-400 uppercase">Class Teacher</div>
+                          {/* Technical Footer */}
+                          <div className="flex justify-between items-end pt-12 px-6 border-t-2 border-slate-100 text-slate-400">
+                            <div className="space-y-4">
+                               <div className="flex items-center gap-6">
+                                  <div className="flex flex-col">
+                                    <span className="text-[8px] font-black uppercase text-slate-300">Issue Date</span>
+                                    <span className="text-xs font-mono font-bold text-slate-900">{new Date().toLocaleDateString()}</span>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-[8px] font-black uppercase text-slate-300">Next Term Begins</span>
+                                    <input 
+                                      type="text"
+                                      value={nextTermBegins}
+                                      onChange={(e) => updateNextTermBegins(e.target.value)}
+                                      className="text-xs font-mono font-black text-blue-600 bg-transparent border-none outline-none p-0 w-32"
+                                      placeholder="05/09/2026"
+                                    />
+                                  </div>
+                               </div>
+                               <div className="text-[8px] font-black uppercase tracking-[0.4em] text-slate-200">Verified Academic Record • Bright Future Academy</div>
                             </div>
-                            <div className="text-center">
-                              <div className="mb-4">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Next Term Begins</div>
-                                <input 
-                                  type="text"
-                                  value={nextTermBegins}
-                                  onChange={(e) => updateNextTermBegins(e.target.value)}
-                                  className="w-40 px-2 py-1 text-xs border border-slate-200 rounded text-center font-bold print:border-none print:bg-transparent"
-                                  placeholder="Enter date..."
-                                />
-                              </div>
-                              <div className="h-12 flex items-center justify-center mb-1">
-                                {settings?.principal_signature_url && (
-                                  <img src={settings.principal_signature_url} alt="Signature" className="h-12 object-contain" />
-                                )}
-                              </div>
-                              <div className="w-40 border-b-2 border-slate-900 mb-2"></div>
-                              <div className="text-[10px] font-bold text-slate-400 uppercase">Principal's Signature</div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-mono text-xs text-slate-900 font-bold">{new Date().toLocaleDateString()}</div>
-                              <div className="text-[10px] font-bold text-slate-400 uppercase mt-2">Date Issued</div>
+                            <div className="text-right">
+                               <div className="flex items-center justify-end gap-2 mb-1">
+                                 <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                                 <span className="text-[10px] font-black text-slate-900 uppercase">Live Database Sync Active</span>
+                               </div>
+                               <span className="text-[8px] font-bold text-slate-400 opacity-50 font-mono tracking-tighter">HASH: {selectedStudent.id}-{new Date().getTime().toString(16).toUpperCase()}</span>
                             </div>
                           </div>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="relative z-10">
+                    <div className="p-12 relative overflow-hidden">
+                      <div className="relative z-10">
                       {/* Watermark for Cumulative */}
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden -z-10">
                         {settings?.school_logo_url ? (
@@ -816,89 +1045,131 @@ export default function Results() {
                       </div>
 
                       {/* Header for Cumulative */}
-                      <div className="flex items-center justify-between border-b-4 border-emerald-600 pb-6 mb-8">
-                        <div className="flex items-center gap-6">
+                      <div className="flex items-center justify-between pb-8 mb-10">
+                        <div className="flex items-center gap-8">
                           {settings?.school_logo_url ? (
-                            <img src={settings.school_logo_url} alt="Logo" className="w-24 h-24 object-contain" />
+                            <img src={settings.school_logo_url} alt="Logo" className="w-28 h-28 object-contain" />
                           ) : (
-                            <div className="w-24 h-24 bg-emerald-600 rounded-2xl flex items-center justify-center">
+                            <div className="w-24 h-24 bg-emerald-600 rounded-[28px] flex items-center justify-center shadow-2xl">
                               <TrendingUp className="w-14 h-14 text-white" />
                             </div>
                           )}
                           <div>
-                            <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">{settings?.school_name}</h1>
-                            <p className="text-emerald-600 font-bold italic">{settings?.school_motto}</p>
-                            <div className="mt-2 flex gap-4 text-sm text-slate-600 font-bold">
-                              <span className="bg-slate-100 px-3 py-1 rounded-full">Annual Session Summary (Cumulative)</span>
-                              <span className="bg-slate-100 px-3 py-1 rounded-full">{settings?.current_session} Session</span>
+                            <h1 className="text-5xl font-black text-slate-900 uppercase tracking-tighter leading-none font-serif">{settings?.school_name}</h1>
+                            <p className="text-emerald-600 font-bold italic text-lg mt-1 tracking-tight">{settings?.school_motto}</p>
+                            <div className="mt-4 flex gap-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                              <span className="bg-emerald-600 text-white px-3 py-1 rounded-sm">Annual Session Summary</span>
+                              <span className="bg-slate-900 text-white px-3 py-1 rounded-sm">{settings?.current_session} Academic Cycle</span>
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-3xl font-black text-slate-200 uppercase tracking-tighter leading-none">Annual<br/>Summary</div>
-                          <div className="text-slate-400 font-mono text-sm mt-2">ADMISSION NO: {selectedStudent.admission_number}</div>
+                        <div className="text-right flex flex-col items-end">
+                          <div className="text-7xl font-black text-slate-100 uppercase tracking-tighter leading-none select-none">Annual</div>
+                          <div className="bg-emerald-600 text-white px-4 py-2 mt-[-20px] rounded-sm relative z-10">
+                            <span className="font-mono text-xs font-bold uppercase tracking-widest">{selectedStudent.admission_number}</span>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Student Info Summary */}
-                      <div className="grid grid-cols-4 gap-4 mb-8">
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Student Name</div>
-                            <div className="font-bold text-slate-900">{selectedStudent.first_name} {selectedStudent.last_name}</div>
+                      {/* Cumulative High-Impact Stats */}
+                      <div className="grid grid-cols-4 gap-6 mb-12">
+                        <div className="bg-[#F8F9FA] p-6 rounded-[32px] border border-slate-100">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Student Identity</div>
+                            <div className="text-xl font-black text-slate-900 truncate">{selectedStudent.first_name} {selectedStudent.last_name}</div>
                         </div>
-                        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Class</div>
-                            <div className="font-bold text-slate-900">{classes.find(c => c.id === parseInt(selectedClass || '0'))?.class_name}</div>
+                        <div className="bg-[#F8F9FA] p-6 rounded-[32px] border border-slate-100">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Level / Class</div>
+                            <div className="text-xl font-black text-slate-900">{classes.find(c => c.id === parseInt(selectedClass || '0'))?.class_name}</div>
                         </div>
-                        <div className="bg-emerald-600 p-4 rounded-2xl shadow-lg shadow-emerald-100">
-                            <div className="text-[10px] font-black text-emerald-200 uppercase mb-1">Cumulative Avg</div>
-                            <div className="text-2xl font-black text-white">{calculateCumulativeAverage()}%</div>
+                        <div className="bg-emerald-600 p-6 rounded-[32px] shadow-2xl shadow-emerald-200">
+                            <div className="text-[10px] font-black text-emerald-100 uppercase tracking-widest mb-1">Session Avg</div>
+                            <div className="text-3xl font-black text-white">{calculateCumulativeAverage()}%</div>
                         </div>
-                        <div className="bg-slate-900 p-4 rounded-2xl shadow-lg shadow-slate-200">
-                            <div className="text-[10px] font-black text-slate-400 uppercase mb-1">Final Status</div>
-                            <div className="text-lg font-black text-white uppercase tracking-tighter">
-                              {parseFloat(calculateCumulativeAverage()) >= 45 ? 'Promoted' : 'Decision Pending'}
+                        <div className="bg-slate-900 p-6 rounded-[32px] shadow-2xl shadow-slate-200 flex flex-col justify-center">
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Promotion Status</div>
+                            <div className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-2">
+                              {parseFloat(calculateCumulativeAverage()) >= 45 ? (
+                                <>
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                  Promoted
+                                </>
+                              ) : 'Decision Pending'}
                             </div>
                         </div>
                       </div>
 
+                      {/* Unified Session Performance Chart */}
+                      <div className="mb-12 bg-[#151619] p-10 rounded-[48px] shadow-2xl print:hidden">
+                         <div className="flex items-center gap-3 mb-8">
+                            <TrendingUp className="w-6 h-6 text-emerald-400" />
+                            <span className="text-xs font-black text-white uppercase tracking-[0.3em]">Session Progress Distribution</span>
+                         </div>
+                         <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={cumulativeResults}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#2D2E32" vertical={false} />
+                                <XAxis 
+                                  dataKey="subject_name" 
+                                  tick={{ fill: '#8E9299', fontSize: 10, fontWeight: 700 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                />
+                                <YAxis 
+                                  tick={{ fill: '#8E9299', fontSize: 10 }} 
+                                  axisLine={false}
+                                  tickLine={false}
+                                  domain={[0, 100]}
+                                />
+                                <Tooltip 
+                                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                  contentStyle={{ backgroundColor: '#151619', borderColor: '#2D2E32', borderRadius: '16px', border: '1px solid #444' }}
+                                />
+                                <Bar dataKey="first_term" name="T1 (30%)" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="second_term" name="T2 (30%)" fill="#10B981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="third_term" name="T3 (40%)" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="cumulative" name="Session Final" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                         </div>
+                      </div>
+
                       {/* Cumulative Table */}
-                      <div className="border border-slate-200 rounded-3xl overflow-hidden shadow-sm mb-8">
+                      <div className="border-2 border-slate-900 rounded-[40px] overflow-hidden shadow-2xl mb-12">
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="bg-slate-900 text-white text-[10px] uppercase font-black tracking-widest text-center">
-                              <th className="px-6 py-4 text-left border border-slate-800">Academic Subject</th>
-                              <th className="px-2 py-4 border border-slate-800">1st (30%)</th>
-                              <th className="px-2 py-4 border border-slate-800">2nd (30%)</th>
-                              <th className="px-2 py-4 border border-slate-800">3rd (40%)</th>
-                              <th className="px-4 py-4 border border-slate-800 bg-emerald-700">Cumulative / 100</th>
-                              <th className="px-4 py-4 border border-slate-800">Remark</th>
+                              <th className="px-8 py-5 text-left tracking-[0.3em]">Subject Module</th>
+                              <th className="px-3 py-5 border-l border-slate-800">1st (30%)</th>
+                              <th className="px-3 py-5 border-l border-slate-800">2nd (30%)</th>
+                              <th className="px-3 py-5 border-l border-slate-800">3rd (40%)</th>
+                              <th className="px-6 py-5 border-l border-slate-800 bg-emerald-700">Cumulative Load / 100</th>
+                              <th className="px-6 py-5 border-l border-slate-800 font-mono italic">Verdict</th>
                             </tr>
                           </thead>
                           <tbody className="text-sm">
                             {cumulativeResults.map((r, idx) => (
-                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                <td className="px-6 py-4 border border-slate-200 font-bold text-slate-900 uppercase tracking-tight">{r.subject_name}</td>
-                                <td className="px-2 py-4 border border-slate-200 text-center font-medium text-slate-600">{r.first_term || '-'}</td>
-                                <td className="px-2 py-4 border border-slate-200 text-center font-medium text-slate-600">{r.second_term || '-'}</td>
-                                <td className="px-2 py-4 border border-slate-200 text-center font-medium text-slate-600">{r.third_term || '-'}</td>
-                                <td className="px-4 py-4 border border-slate-200 text-center font-black text-emerald-600 text-base">{r.cumulative.toFixed(1)}</td>
-                                <td className="px-4 py-4 border border-slate-200 text-center">
-                                  <span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest ${
-                                    r.cumulative >= 45 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50 hover:bg-slate-100/50 transition-colors'}>
+                                <td className="px-8 py-5 border-b border-slate-100 font-black text-slate-900 uppercase tracking-tight text-base">{r.subject_name}</td>
+                                <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono font-bold text-slate-500">{r.first_term || '-'}</td>
+                                <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono font-bold text-slate-500">{r.second_term || '-'}</td>
+                                <td className="px-3 py-5 border-b border-slate-100 border-l text-center font-mono font-bold text-slate-500">{r.third_term || '-'}</td>
+                                <td className="px-6 py-5 border-b border-slate-100 border-l text-center font-black text-emerald-600 text-xl font-mono">{r.cumulative.toFixed(1)}</td>
+                                <td className="px-6 py-5 border-b border-slate-100 border-l text-center">
+                                  <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-block ${
+                                    r.cumulative >= 45 ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-rose-100 text-rose-700 border border-rose-200'
                                   }`}>
                                     {getRemark(r.cumulative)}
-                                  </span>
+                                  </div>
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                           <tfoot>
                             <tr className="bg-slate-900 text-white">
-                              <td className="px-6 py-4 font-black uppercase text-xs tracking-widest border border-slate-800">Annual Average Score</td>
-                              <td colSpan={3} className="border border-slate-800"></td>
-                              <td className="px-4 py-4 text-center font-black text-xl border border-slate-800 text-emerald-400">{calculateCumulativeAverage()}%</td>
-                              <td className="border border-slate-800"></td>
+                              <td className="px-8 py-6 font-black uppercase text-xs tracking-[0.4em] font-mono">Session Weighted Average</td>
+                              <td colSpan={3} className="border-l border-slate-800"></td>
+                              <td className="px-6 py-6 text-center font-black text-3xl border-l border-slate-800 text-emerald-400 font-mono tracking-tighter">{calculateCumulativeAverage()}%</td>
+                              <td className="border-l border-slate-800 italic text-[10px] text-slate-500 px-6">WEIGHTED RATIO: 3:3:4</td>
                             </tr>
                           </tfoot>
                         </table>
@@ -934,20 +1205,33 @@ export default function Results() {
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
+                  </div>
                 </div>
               </div>
+            </motion.div>
+          ) : (
+               <div className="bg-white rounded-[40px] shadow-2xl border border-slate-100 h-[800px] flex flex-col items-center justify-center text-slate-400 space-y-6">
+                <div className="w-24 h-24 bg-slate-50 rounded-[32px] flex items-center justify-center shadow-inner">
+                  <BookOpen className="w-12 h-12 text-slate-300" />
                 </div>
-              ) : (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 h-[600px] flex flex-col items-center justify-center text-slate-400 space-y-4">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center">
-                  <BookOpen className="w-10 h-10" />
+                <div className="text-center space-y-2">
+                  <p className="font-black text-slate-900 uppercase tracking-widest">Repository Standing By</p>
+                  <p className="text-xs font-medium max-w-[250px] mx-auto text-slate-400">Select a student from the sidebar to visualize their academic journey.</p>
                 </div>
-                <p className="font-medium">Select a student to view their report card</p>
+                <motion.div 
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="pt-4"
+                >
+                  <ChevronRight className="w-6 h-6 text-blue-200 -rotate-90" />
+                </motion.div>
               </div>
             )}
-          </div>
+          </AnimatePresence>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Users, UserRound, School, BookOpen, TrendingUp, BarChart3, PieChart as PieChartIcon, Sparkles, Trophy, Loader2, ChevronRight, Brain, Wallet, Receipt, Megaphone, Send, Trash2, Plus, X } from 'lucide-react';
@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { Toaster, toast } from 'sonner';
 import { Announcement } from '../../types';
+import { DashboardSkeleton } from '../../components/ui/LoadingStates';
 import { 
   BarChart, 
   Bar, 
@@ -59,7 +60,8 @@ export default function AdminDashboard() {
           { data: classes },
           { data: standards },
           { data: feeRecords },
-          { data: allStudents }
+          { data: allResultsData },
+          { data: annData }
         ] = await Promise.all([
           supabase.from('students').select('*', { count: 'exact', head: true }),
           supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
@@ -68,7 +70,8 @@ export default function AdminDashboard() {
           supabase.from('classes').select('id, class_name, students!class_id(id, first_name, last_name, admission_number)'),
           supabase.from('fee_standards').select('*').eq('term', settings?.current_term).eq('session', settings?.current_session),
           supabase.from('fee_records').select('*').eq('term', settings?.current_term).eq('session', settings?.current_session),
-          supabase.from('students').select('id, first_name, last_name, class_id, classes(class_name)')
+          supabase.from('results').select('student_id, ca1_score, ca2_score, exam_score, students!inner(first_name, last_name, class_id)'),
+          supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(5)
         ]);
 
         // Calculate expected revenue based on standards and enrolled students
@@ -120,51 +123,47 @@ export default function AdminDashboard() {
 
         // Prepare class distribution data
         if (classes) {
-          const dist = classes.map((c: any) => ({
+          setClassData(classes.map((c: any) => ({
             name: c.class_name,
-            students: c.students?.[0]?.count || 0
-          }));
-          setClassData(dist);
+            students: c.students?.length || 0
+          })));
 
-          // Fetch top student for each class
-          const topStudentsList = [];
-          for (const cls of classes) {
-            const { data: results } = await supabase
-              .from('results')
-              .select('student_id, ca1_score, ca2_score, exam_score, students!inner(first_name, last_name, class_id)')
-              .eq('students.class_id', cls.id);
-
-            if (results && results.length > 0) {
-              // Group by student and sum scores
-              const studentScores: Record<number, any> = {};
-              results.forEach(r => {
-                const total = (r.ca1_score || 0) + (r.ca2_score || 0) + (r.exam_score || 0);
-                if (total > 0) {
-                  if (!studentScores[r.student_id]) {
-                    const studentData = r.students as any;
-                    studentScores[r.student_id] = {
-                      id: r.student_id,
-                      name: `${studentData.first_name} ${studentData.last_name}`,
-                      class: cls.class_name,
-                      total: 0,
-                      count: 0
-                    };
+          // Process top students from combined results data
+          if (allResultsData) {
+            const topStudentsList: any[] = [];
+            classes.forEach((cls: any) => {
+              const classResults = allResultsData.filter((r: any) => (r.students as any).class_id === cls.id);
+              if (classResults.length > 0) {
+                const studentScores: Record<number, any> = {};
+                classResults.forEach((r: any) => {
+                  const total = (r.ca1_score || 0) + (r.ca2_score || 0) + (r.exam_score || 0);
+                  if (total > 0) {
+                    if (!studentScores[r.student_id]) {
+                      const studentData = r.students as any;
+                      studentScores[r.student_id] = {
+                        id: r.student_id,
+                        name: `${studentData.first_name} ${studentData.last_name}`,
+                        class: cls.class_name,
+                        total: 0,
+                        count: 0
+                      };
+                    }
+                    studentScores[r.student_id].total += total;
+                    studentScores[r.student_id].count += 1;
                   }
-                  studentScores[r.student_id].total += total;
-                  studentScores[r.student_id].count += 1;
-                }
-              });
-
-              const top = Object.values(studentScores).sort((a: any, b: any) => b.total - a.total)[0];
-              if (top) {
-                topStudentsList.push({
-                  ...top,
-                  average: (top as any).total / ((top as any).count || 1)
                 });
+
+                const top = Object.values(studentScores).sort((a: any, b: any) => b.total - a.total)[0];
+                if (top) {
+                  topStudentsList.push({
+                    ...top,
+                    average: (top as any).total / ((top as any).count || 1)
+                  });
+                }
               }
-            }
+            });
+            setTopStudents(topStudentsList);
           }
-          setTopStudents(topStudentsList);
         }
 
         // Prepare performance data (mocking some distribution for visual appeal)
@@ -176,12 +175,6 @@ export default function AdminDashboard() {
           { range: '70-100', count: 34, fill: '#3b82f6' },
         ]);
 
-        // Fetch announcements
-        const { data: annData } = await supabase
-          .from('announcements')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(5);
         setAnnouncements(annData || []);
 
       } catch (error) {
@@ -294,26 +287,21 @@ export default function AdminDashboard() {
     }
   }
 
-  const cards = [
+  const cards = useMemo(() => [
     { label: 'Total Students', value: stats.students, icon: Users, color: 'bg-blue-500' },
     { label: 'Total Teachers', value: stats.teachers, icon: UserRound, color: 'bg-purple-500' },
     { label: 'Total Classes', value: stats.classes, icon: School, color: 'bg-emerald-500' },
     { label: 'Total Subjects', value: stats.subjects, icon: BookOpen, color: 'bg-orange-500' },
-  ];
+  ], [stats.students, stats.teachers, stats.classes, stats.subjects]);
 
-  const financialCards = [
+  const financialCards = useMemo(() => [
     { label: 'Real Revenue (Target)', value: `₦${(stats.expectedRevenue || 0).toLocaleString()}`, icon: Receipt, color: 'bg-slate-900' },
     { label: 'Collected Revenue', value: `₦${(stats.collectedRevenue || 0).toLocaleString()}`, icon: Wallet, color: 'bg-emerald-600' },
     { label: 'Outstanding Fees', value: `₦${((stats.expectedRevenue || 0) - (stats.collectedRevenue || 0)).toLocaleString()}`, icon: TrendingUp, color: 'bg-rose-600' },
     { label: 'Collection Rate', value: `${stats.expectedRevenue > 0 ? Math.round((stats.collectedRevenue / stats.expectedRevenue) * 100) : 0}%`, icon: BarChart3, color: 'bg-blue-600' },
-  ];
+  ], [stats.expectedRevenue, stats.collectedRevenue]);
 
-  if (loading) return <div className="animate-pulse space-y-8">
-    <div className="h-8 bg-slate-200 rounded w-1/4"></div>
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-200 rounded-2xl"></div>)}
-    </div>
-  </div>;
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="space-y-8 pb-12">

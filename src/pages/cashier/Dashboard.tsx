@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { 
   Users, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { DashboardSkeleton } from '../../components/ui/LoadingStates';
 
 export default function CashierDashboard() {
   const { profile, settings } = useAuth();
@@ -33,6 +34,7 @@ export default function CashierDashboard() {
 
   async function fetchStats() {
     try {
+      setLoading(true);
       const [
         { data: students },
         { data: fees },
@@ -103,6 +105,8 @@ export default function CashierDashboard() {
       setLoading(false);
     }
   }
+
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="space-y-6">

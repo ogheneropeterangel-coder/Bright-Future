@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { Users, BookOpen, School, TrendingUp, ClipboardList, Sparkles, Megaphone, Send, X, Loader2, Info } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import AIHomeworkHelper from '../../components/AIHomeworkHelper';
 import { Toaster, toast } from 'sonner';
 import { Announcement } from '../../types';
+import { DashboardSkeleton } from '../../components/ui/LoadingStates';
 
 export default function TeacherDashboard() {
   const { profile } = useAuth();
@@ -36,110 +37,65 @@ export default function TeacherDashboard() {
       if (!profile) return;
 
       try {
-        // Get classes assigned to this teacher (direct)
-        const { data: directClasses } = await supabase
-          .from('classes')
-          .select('id, class_name')
-          .eq('teacher_id', profile.id);
+        setLoading(true);
+        // Parallelize initial mapping data
+        const [
+          { data: directClasses },
+          { data: pivotClasses },
+          { data: studentClasses },
+          { data: teacherSubjectsData },
+          { data: allSubjectsData },
+          { data: teacherSubjectsStats },
+          { data: annData }
+        ] = await Promise.all([
+          supabase.from('classes').select('id, class_name').eq('teacher_id', profile.id),
+          supabase.from('teacher_classes').select('class_id, classes!class_id(id, class_name)').eq('teacher_id', profile.id),
+          supabase.from('students').select('class_id, classes!class_id(id, class_name)').eq('teacher_id', profile.id),
+          supabase.from('teacher_subjects').select('subject_id').eq('teacher_id', profile.id),
+          supabase.from('subjects').select('*').order('subject_name'),
+          supabase.from('teacher_subjects').select('*, subjects(id, subject_name)').eq('teacher_id', profile.id),
+          supabase.from('announcements').select('*').or(`target_role.eq.all,target_role.eq.teacher,sender_id.eq.${profile.id}`).order('created_at', { ascending: false }).limit(5)
+        ]);
 
-        // Get classes assigned to this teacher (pivot)
-        const { data: pivotClasses } = await supabase
-          .from('teacher_classes')
-          .select('class_id, classes!class_id(id, class_name)')
-          .eq('teacher_id', profile.id);
-
-        // Get classes from students assigned to this teacher
-        const { data: studentClasses } = await supabase
-          .from('students')
-          .select('class_id, classes!class_id(id, class_name)')
-          .eq('teacher_id', profile.id);
-
-        // Get classes from subjects assigned to this teacher
-        const { data: teacherSubjectsData } = await supabase
-          .from('teacher_subjects')
-          .select('subject_id')
-          .eq('teacher_id', profile.id);
-        
         const teacherSubjectIds = teacherSubjectsData?.map(ts => ts.subject_id) || [];
         
-        let subjectClasses: any[] = [];
-        if (teacherSubjectIds.length > 0) {
-          const { data: scData } = await supabase
-            .from('class_subjects')
-            .select('class_id, classes!class_id(id, class_name)')
-            .in('subject_id', teacherSubjectIds);
-          subjectClasses = scData?.map(cs => cs.classes).filter(Boolean) || [];
-        }
-
+        // Secondary parallel calls that depend on previous results
         const directData = directClasses || [];
         const pivotData = pivotClasses?.map(p => p.classes).filter(Boolean) as any[] || [];
         const studentClassData = studentClasses?.map(s => s.classes).filter(Boolean) as any[] || [];
         
-        // Combine and unique by ID
+        // Initial combination
+        const combinedInitialClasses = [...directData, ...pivotData, ...studentClassData];
+
+        // Fetch subject classes and class subjects in parallel
+        const [subjectClassesData, classSubjectsDataResponse, scoresDataResponse, studentsInClassesResponse] = await Promise.all([
+          teacherSubjectIds.length > 0 
+            ? supabase.from('class_subjects').select('class_id, classes!class_id(id, class_name)').in('subject_id', teacherSubjectIds)
+            : Promise.resolve({ data: [] }),
+          supabase.from('class_subjects').select('*, subjects(id, subject_name)'),
+          supabase.from('results').select('*, students(first_name, last_name), subjects(subject_name)').order('created_at', { ascending: false }).limit(5),
+          supabase.from('students').select('*').order('last_name')
+        ]);
+
+        const subjectClasses = (subjectClassesData as any).data?.map((cs: any) => cs.classes).filter(Boolean) || [];
         const allClassData = Array.from(
-          new Map([...directData, ...pivotData, ...studentClassData, ...subjectClasses].map(c => [c.id, c])).values()
+          new Map([...combinedInitialClasses, ...subjectClasses].map(c => [c.id, c])).values()
         );
         const classIds = allClassData.map(c => c.id);
 
-        // Fetch recent scores for this teacher's classes
-        if (classIds.length > 0) {
-          const { data: scoresData } = await supabase
-            .from('results')
-            .select('*, students(first_name, last_name), subjects(subject_name)')
-            .in('class_id', classIds)
-            .order('created_at', { ascending: false })
-            .limit(5);
-          
-          setRecentScores(scoresData || []);
-        }
+        const allStudents = (studentsInClassesResponse as any).data || [];
+        const myStudents = allStudents.filter((s: any) => classIds.includes(s.class_id) || s.teacher_id === profile.id);
+        const recentScores = ((scoresDataResponse as any).data || []).filter((s: any) => classIds.includes(s.class_id));
 
-        // Get subjects assigned to these classes (from class_subjects table)
-        let classSubjectsData: any[] = [];
-        if (classIds.length > 0) {
-          const { data: csData } = await supabase
-            .from('class_subjects')
-            .select('*, subjects(id, subject_name)')
-            .in('class_id', classIds);
-          classSubjectsData = csData || [];
-        }
+        setRecentScores(recentScores);
+        setAnnouncements(annData || []);
 
-        // Get all subjects for fallback
-        const { data: allSubjectsData } = await supabase.from('subjects').select('*').order('subject_name');
         const allSubjectNames = allSubjectsData?.map(s => s.subject_name) || [];
-
-        // Get subjects assigned to this teacher (from pivot table) - for stats
-        const { data: teacherSubjectsStats } = await supabase
-          .from('teacher_subjects')
-          .select('*, subjects(id, subject_name)')
-          .eq('teacher_id', profile.id);
-
-        // Get students in those classes
-        let classStudents: any[] = [];
-        if (classIds.length > 0) {
-          const { data: studentsData } = await supabase
-            .from('students')
-            .select('*')
-            .in('class_id', classIds)
-            .order('last_name');
-          classStudents = studentsData || [];
-        }
-
-        // Get students assigned directly to this teacher
-        const { data: directStudents } = await supabase
-          .from('students')
-          .select('*')
-          .eq('teacher_id', profile.id);
-        
-        const directStudentsData = directStudents || [];
-
-        // Combine and unique by ID
-        const allStudents = Array.from(
-          new Map([...classStudents, ...directStudentsData].map(s => [s.id, s])).values()
-        );
+        const classSubjectsData = (classSubjectsDataResponse as any).data || [];
 
         // Build class details
         const details = allClassData.map(cls => {
-          const studentsInThisClass = allStudents.filter(s => s.class_id === cls.id);
+          const studentsInThisClass = myStudents.filter((s: any) => s.class_id === cls.id);
           const isClassTeacher = directData.some(d => d.id === cls.id);
           
           let subjectsInThisClass: string[] = [];
@@ -149,48 +105,31 @@ export default function TeacherDashboard() {
           }).filter(Boolean) || [];
 
           if (isClassTeacher) {
-            // Class teachers see all subjects in their class
-            subjectsInThisClass = (classSubjectsData || [])
-              .filter(cs => cs.class_id === cls.id)
-              .map(cs => {
+            subjectsInThisClass = classSubjectsData
+              .filter((cs: any) => cs.class_id === cls.id)
+              .map((cs: any) => {
                 const sub = Array.isArray(cs.subjects) ? cs.subjects[0] : cs.subjects;
                 return sub?.subject_name;
               })
               .filter(Boolean) || [];
             
-            // If class subjects is empty, show teacher's assigned subjects as fallback
             if (subjectsInThisClass.length === 0 && teacherAssignedSubjects.length > 0) {
               subjectsInThisClass = teacherAssignedSubjects;
             }
           } else {
-            // Subject teachers see subjects they are assigned to
-            subjectsInThisClass = (classSubjectsData || [])
-              .filter(cs => cs.class_id === cls.id && teacherSubjectIds.includes(cs.subject_id))
-              .map(cs => {
+            subjectsInThisClass = classSubjectsData
+              .filter((cs: any) => cs.class_id === cls.id && teacherSubjectIds.includes(cs.subject_id))
+              .map((cs: any) => {
                 const sub = Array.isArray(cs.subjects) ? cs.subjects[0] : cs.subjects;
                 return sub?.subject_name;
               })
               .filter(Boolean) || [];
             
-            // If they are assigned to the class but no specific subjects in class_subjects, 
-            // show their teacher_subjects (fallback)
             if (subjectsInThisClass.length === 0) {
-              if (teacherAssignedSubjects.length > 0) {
-                subjectsInThisClass = teacherAssignedSubjects;
-              } else {
-                // Last fallback: show all subjects for the class
-                subjectsInThisClass = (classSubjectsData || [])
-                  .filter(cs => cs.class_id === cls.id)
-                  .map(cs => {
-                    const sub = Array.isArray(cs.subjects) ? cs.subjects[0] : cs.subjects;
-                    return sub?.subject_name;
-                  })
-                  .filter(Boolean) || [];
-              }
+              subjectsInThisClass = teacherAssignedSubjects.length > 0 ? teacherAssignedSubjects : allSubjectNames;
             }
           }
 
-          // Final fallback: if still no subjects, show all subjects in the school
           if (subjectsInThisClass.length === 0) {
             subjectsInThisClass = allSubjectNames;
           }
@@ -203,7 +142,6 @@ export default function TeacherDashboard() {
           };
         });
 
-        // Calculate total unique subjects across all classes
         const allUniqueSubjects = new Set<string>();
         details.forEach(d => {
           d.subjects.forEach((s: string) => allUniqueSubjects.add(s));
@@ -213,17 +151,8 @@ export default function TeacherDashboard() {
         setStats({
           myClasses: classIds.length,
           mySubjects: allUniqueSubjects.size,
-          totalStudents: allStudents.length,
+          totalStudents: myStudents.length,
         });
-
-        // Fetch announcements (from admin or self)
-        const { data: annData } = await supabase
-          .from('announcements')
-          .select('*')
-          .or(`target_role.eq.all,target_role.eq.teacher,sender_id.eq.${profile.id}`)
-          .order('created_at', { ascending: false })
-          .limit(5);
-        setAnnouncements(annData || []);
 
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -274,18 +203,13 @@ export default function TeacherDashboard() {
     }
   }
 
-  const cards = [
+  const cards = useMemo(() => [
     { label: 'My Classes', value: stats.myClasses, icon: School, color: 'bg-emerald-500' },
     { label: 'My Subjects', value: stats.mySubjects, icon: BookOpen, color: 'bg-orange-500' },
     { label: 'Total Students', value: stats.totalStudents, icon: Users, color: 'bg-blue-500' },
-  ];
+  ], [stats.myClasses, stats.mySubjects, stats.totalStudents]);
 
-  if (loading) return <div className="animate-pulse space-y-8">
-    <div className="h-8 bg-slate-200 rounded w-1/4"></div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {[1,2,3].map(i => <div key={i} className="h-32 bg-slate-200 rounded-2xl"></div>)}
-    </div>
-  </div>;
+  if (loading) return <DashboardSkeleton />;
 
   return (
     <div className="space-y-8">
