@@ -167,8 +167,8 @@ export default function Teachers() {
         if (authError) {
           console.error('Auth signUp error details:', authError);
           
-          if (authError.message.includes('Database error saving new user')) {
-            throw new Error('A database error occurred in the account trigger. This usually means the "cashier" role is not yet active in your database enum. Please run the SQL migration mentioned in the chat.');
+          if (authError.message.includes('Database error saving new user') || authError.message.includes('unexpected error')) {
+            throw new Error('A database sync error occurred. This usually means the latest SQL schema (from supabase_schema.sql) needs to be applied in your Supabase SQL Editor to support the selected role.');
           }
 
           if (authError.message.includes('already registered')) {
@@ -229,7 +229,7 @@ export default function Teachers() {
           }
         }
         
-        toast.success(`${formData.role === 'teacher' ? 'Teacher' : 'Cashier'} account created`);
+        toast.success(`${formData.role === 'teacher' ? 'Teacher' : formData.role === 'cashier' ? 'Cashier' : 'Staff'} account created`);
       }
 
     setIsModalOpen(false);
@@ -341,6 +341,12 @@ export default function Teachers() {
       setIsSubmitting(false);
     }
   }
+
+  const staffRoles = [
+    { id: 'teacher', label: 'Teacher', color: 'bg-blue-600' },
+    { id: 'cashier', label: 'Cashier', color: 'bg-amber-600' },
+    { id: 'exam_officer', label: 'Exam Officer', color: 'bg-purple-600' }
+  ];
 
   return (
     <div className="space-y-6">
@@ -467,33 +473,20 @@ export default function Teachers() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Account Role</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, role: 'teacher'})}
-                    className={`py-2 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                      formData.role === 'teacher' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Teacher
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, role: 'cashier'})}
-                    className={`py-2 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                      formData.role === 'cashier' ? 'bg-amber-600 border-amber-600 text-white' : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Cashier
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData({...formData, role: 'exam_officer'})}
-                    className={`py-2 px-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                      formData.role === 'exam_officer' ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-slate-200 text-slate-600'
-                    }`}
-                  >
-                    Exam Officer
-                  </button>
+                  {staffRoles.map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setFormData({...formData, role: role.id as any})}
+                      className={`py-2 px-1 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        formData.role === role.id 
+                          ? `${role.color} border-transparent text-white` 
+                          : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {role.label.split(' ')[0]}
+                    </button>
+                  ))}
                 </div>
               </div>
               <div>

@@ -145,7 +145,7 @@ export default function CashierDashboard() {
             icon={CheckCircle} 
             label="Fully Paid" 
             value={`${stats.paidStudents} Students`} 
-            color="blue" 
+            color="purple" 
             loading={loading}
           />
           <StatCard 
@@ -187,7 +187,7 @@ export default function CashierDashboard() {
                 <p className="text-slate-500 mb-8 font-medium leading-relaxed">Track debtors, monitor carried-over balances and generate reports.</p>
                 <Link 
                   to="/cashier/debt"
-                  className="inline-flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-100"
+                  className="inline-flex items-center gap-3 px-8 py-4 bg-brand-purple text-white rounded-2xl font-black text-sm hover:bg-purple-700 transition-all active:scale-95 shadow-lg shadow-purple-100"
                 >
                   Manage Debts
                   <ArrowRight className="w-4 h-4" />
@@ -199,7 +199,7 @@ export default function CashierDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
               <h4 className="font-black text-slate-900 mb-4 flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-600" />
+                <Users className="w-4 h-4 text-brand-purple" />
                 Compliance Rate
               </h4>
               <div className="flex items-end gap-2 mb-2">
@@ -284,7 +284,7 @@ export default function CashierDashboard() {
 
 function StatCard({ icon: Icon, label, value, color, loading }: any) {
   const colors: any = {
-    blue: "bg-blue-50 text-blue-600 border-blue-100",
+    purple: "bg-purple-50 text-brand-purple border-purple-100",
     emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
     rose: "bg-rose-50 text-rose-600 border-rose-100",
     amber: "bg-amber-50 text-amber-600 border-amber-100"

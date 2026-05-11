@@ -6,13 +6,14 @@
   --font-serif: "Playfair Display", serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  --color-brand-blue: #2563eb;
-  --color-brand-slate: #0f172a;
+  --color-brand-purple: #7c3aed;
+  --color-brand-milk: #FDFCF8;
+  --color-brand-slate: #1e1b4b;
 }
 
 @layer base {
   body {
-    @apply font-sans;
+    @apply font-sans bg-brand-milk text-brand-slate;
   }
   @media print {
     body {

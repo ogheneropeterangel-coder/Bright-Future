@@ -55,7 +55,7 @@ export default function DebtManagement() {
         const recordIds = records.map(r => r.id);
         const { data: txData, error } = await supabase
           .from('fee_transactions')
-          .select('*, cashier:profiles(name)')
+          .select('*, cashier:profiles!fee_transactions_received_by_fkey(name)')
           .in('fee_record_id', recordIds)
           .order('transaction_date', { ascending: false });
         
@@ -214,7 +214,7 @@ export default function DebtManagement() {
         </div>
         <button
           onClick={exportToExcel}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-95"
+          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-purple text-white rounded-xl font-bold hover:bg-purple-700 shadow-lg shadow-purple-100 transition-all active:scale-95"
         >
           <Download className="w-4 h-4" />
           Export Debtors (Excel)
@@ -222,13 +222,13 @@ export default function DebtManagement() {
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 bg-blue-50 border border-blue-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm border border-blue-100">
+        <div className="p-6 bg-purple-50 border border-purple-100 rounded-3xl flex items-center gap-4">
+          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-brand-purple shadow-sm border border-purple-100">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-sm text-blue-600/80 font-bold tracking-widest uppercase">Term Debt</p>
-            <p className="text-2xl font-black text-blue-900">₦{totals.currentDebt.toLocaleString()}</p>
+            <p className="text-sm text-brand-purple/80 font-bold tracking-widest uppercase">Term Debt</p>
+            <p className="text-2xl font-black text-brand-purple">₦{totals.currentDebt.toLocaleString()}</p>
           </div>
         </div>
         <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl flex items-center gap-4">
@@ -259,14 +259,14 @@ export default function DebtManagement() {
             placeholder="Search debtor name or ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium"
+            className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none transition-all font-medium"
           />
         </div>
         <div className="flex flex-wrap gap-2">
           <select
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
-            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm"
           >
             <option value="all">All Classes</option>
             {classes.map(cls => (
@@ -276,7 +276,7 @@ export default function DebtManagement() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm text-rose-600"
+            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm text-rose-600"
           >
             <option value="all" className="text-slate-900">All Debtors</option>
             <option value="Not Paid" className="text-rose-600">No Payment</option>
@@ -285,7 +285,7 @@ export default function DebtManagement() {
           <select
             value={selectedTerm}
             onChange={(e) => setSelectedTerm(e.target.value)}
-            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm"
+            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm"
           >
             <option value="1st Term">1st Term</option>
             <option value="2nd Term">2nd Term</option>
@@ -296,7 +296,7 @@ export default function DebtManagement() {
             placeholder="Session (e.g. 2023/2024)"
             value={selectedSession}
             onChange={(e) => setSelectedSession(e.target.value)}
-            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm w-32"
+            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm w-32"
           />
         </div>
       </div>
@@ -373,7 +373,7 @@ export default function DebtManagement() {
                           setSelectedStudent(student);
                           setIsModalOpen(true);
                         }}
-                        className="text-[9px] font-black uppercase tracking-widest text-blue-600 hover:underline"
+                        className="text-[9px] font-black uppercase tracking-widest text-brand-purple hover:underline"
                       >
                         View History
                       </button>
@@ -462,7 +462,7 @@ export default function DebtManagement() {
                         {feeTransactions.map((tx) => (
                           <div key={tx.id} className="p-4 bg-white border border-slate-100 rounded-2xl flex items-center justify-between hover:bg-slate-50 transition-colors">
                             <div className="flex items-center gap-4">
-                              <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
+                              <div className="p-2 bg-purple-50 rounded-xl text-brand-purple">
                                 <Receipt className="w-4 h-4" />
                               </div>
                               <div>
@@ -499,7 +499,7 @@ export default function DebtManagement() {
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+                  className="px-8 py-3 bg-brand-purple text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-purple-700 transition-all shadow-xl shadow-purple-100"
                 >
                   Close
                 </button>

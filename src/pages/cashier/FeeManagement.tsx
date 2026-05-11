@@ -49,18 +49,22 @@ export default function FeeManagement() {
   const [paymentData, setPaymentData] = useState({
     amount: '',
     total_amount: '',
+    term: settings?.current_term || '',
+    session: settings?.current_session || '',
     method: 'Cash' as 'Cash' | 'Bank Transfer' | 'POS' | 'Online',
+    notes: ''
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previousDebt, setPreviousDebt] = useState(0);
 
   useEffect(() => {
     fetchInitialData();
-  }, []);
+  }, [settings]);
 
   useEffect(() => {
     fetchStudents();
-  }, [selectedClass, filterStatus]);
+  }, [selectedClass, filterStatus, settings]);
 
   async function fetchInitialData() {
     try {
@@ -117,6 +121,28 @@ export default function FeeManagement() {
     }
   }
 
+  async function calculateDebt(studentId: number) {
+    try {
+      const { data, error } = await supabase
+        .from('fee_records')
+        .select('*')
+        .eq('student_id', studentId);
+      
+      if (error) throw error;
+      
+      // Calculate debt from all terms EXCEPT the one being selected in the modal (initially current)
+      const debt = (data || []).reduce((acc, rec) => {
+        // Only count as debt if it's NOT the current term/session we are looking at
+        if (rec.term === settings?.current_term && rec.session === settings?.current_session) return acc;
+        return acc + Number(rec.balance || 0);
+      }, 0);
+      
+      setPreviousDebt(debt);
+    } catch (error: any) {
+      console.error('Error calculating debt:', error);
+    }
+  }
+
   async function openPaymentModal(student: any) {
     const record = student.fee_records?.find((f: any) => 
       f.term === settings?.current_term && f.session === settings?.current_session
@@ -133,9 +159,73 @@ export default function FeeManagement() {
     setPaymentData({
       amount: balance > 0 ? balance.toString() : '',
       total_amount: totalAmount.toString(),
+      term: settings?.current_term || '',
+      session: settings?.current_session || '',
       method: 'Cash',
+      notes: ''
     });
+    
+    calculateDebt(student.id);
     setIsPaymentModalOpen(true);
+  }
+
+  // Update total amount when term/session changes in modal
+  useEffect(() => {
+    if (isPaymentModalOpen && selectedStudent) {
+      updateModalTotals();
+    }
+  }, [paymentData.term, paymentData.session]);
+
+  async function updateModalTotals() {
+    try {
+      const { data: record, error } = await supabase
+        .from('fee_records')
+        .select('*')
+        .eq('student_id', selectedStudent.id)
+        .eq('term', paymentData.term)
+        .eq('session', paymentData.session)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (record) {
+        setPaymentData(prev => ({
+          ...prev,
+          total_amount: record.total_amount.toString(),
+          amount: (Number(record.total_amount) - Number(record.amount_paid)).toString()
+        }));
+      } else {
+        // Try getting from standard
+        const { data: standard } = await supabase
+          .from('fee_standards')
+          .select('amount')
+          .eq('class_id', selectedStudent.class_id)
+          .eq('term', paymentData.term)
+          .eq('session', paymentData.session)
+          .maybeSingle();
+
+        setPaymentData(prev => ({
+          ...prev,
+          total_amount: (standard?.amount || 0).toString(),
+          amount: (standard?.amount || 0).toString()
+        }));
+      }
+
+      // Re-calculate previous debt excluding the newly selected term/session
+      const { data: allRecords } = await supabase
+        .from('fee_records')
+        .select('balance, term, session')
+        .eq('student_id', selectedStudent.id);
+
+      const debt = (allRecords || []).reduce((acc, rec) => {
+        if (rec.term === paymentData.term && rec.session === paymentData.session) return acc;
+        return acc + Number(rec.balance || 0);
+      }, 0);
+      setPreviousDebt(debt);
+
+    } catch (error: any) {
+      toast.error('Failed to update term totals');
+    }
   }
 
   async function fetchHistory(feeRecordId: number) {
@@ -168,12 +258,17 @@ export default function FeeManagement() {
 
     setIsSubmitting(true);
     try {
-      // 1. Get or Create Fee Record
-      const record = selectedStudent.fee_records?.find((f: any) => 
-        f.term === settings?.current_term && f.session === settings?.current_session
-      );
+      // 1. Get current record for the selected term/session
+      const { data: record, error: fetchError } = await supabase
+        .from('fee_records')
+        .select('*')
+        .eq('student_id', selectedStudent.id)
+        .eq('term', paymentData.term)
+        .eq('session', paymentData.session)
+        .maybeSingle();
 
-      let recordId = record?.id;
+      if (fetchError) throw fetchError;
+
       let currentPaid = Number(record?.amount_paid || 0);
       let newPaid = currentPaid + amount;
       
@@ -183,8 +278,8 @@ export default function FeeManagement() {
 
       const upsertData: any = {
         student_id: selectedStudent.id,
-        term: settings?.current_term,
-        session: settings?.current_session,
+        term: paymentData.term,
+        session: paymentData.session,
         total_amount: totalAmount,
         amount_paid: newPaid,
         status: status,
@@ -206,10 +301,14 @@ export default function FeeManagement() {
         const { error: txError } = await supabase
           .from('fee_transactions')
           .insert({
+            student_id: selectedStudent.id,
             fee_record_id: updatedRecord.id,
             amount: amount,
             payment_method: paymentData.method,
-            cashier_id: profile?.id
+            received_by: profile?.id,
+            term: paymentData.term,
+            session: paymentData.session,
+            notes: paymentData.notes
           });
         if (txError) throw txError;
       }
@@ -268,13 +367,13 @@ export default function FeeManagement() {
             placeholder="Search student by name or ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm transition-all"
+            className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none shadow-sm transition-all"
           />
         </div>
         <select
           value={selectedClass}
           onChange={(e) => setSelectedClass(e.target.value)}
-          className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm font-bold text-sm text-slate-700"
+          className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none shadow-sm font-bold text-sm text-slate-700"
         >
           <option value="all">All Classes</option>
           {classes.map(cls => (
@@ -284,7 +383,7 @@ export default function FeeManagement() {
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none shadow-sm font-bold text-sm text-slate-700"
+          className="px-4 py-3 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none shadow-sm font-bold text-sm text-slate-700"
         >
           <option value="all">Any Status</option>
           <option value="Paid">Fully Paid</option>
@@ -395,7 +494,7 @@ export default function FeeManagement() {
                           onClick={() => record && toggleLock(student.id, record)}
                           disabled={!record}
                           className={`flex items-center gap-2 group transition-all ${
-                            isLocked ? 'text-slate-400' : 'text-blue-600'
+                            isLocked ? 'text-slate-400' : 'text-brand-purple'
                           }`}
                         >
                           {isLocked ? (
@@ -415,7 +514,7 @@ export default function FeeManagement() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openPaymentModal(student)}
-                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm"
+                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm"
                             title="Process Payment"
                           >
                             <Plus className="w-4 h-4" />
@@ -423,7 +522,7 @@ export default function FeeManagement() {
                           <button
                             onClick={() => record && fetchHistory(record.id)}
                             disabled={!record}
-                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-blue-600 hover:text-white transition-all shadow-sm disabled:opacity-30"
+                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm disabled:opacity-30"
                             title="View Invoices"
                           >
                             <History className="w-4 h-4" />
@@ -468,6 +567,48 @@ export default function FeeManagement() {
               </div>
 
               <form onSubmit={processPayment} className="p-8 space-y-6">
+                {previousDebt > 0 && (
+                  <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-rose-600" />
+                      <div>
+                        <p className="text-[10px] font-black text-rose-900 uppercase tracking-widest leading-none">Historical Debt</p>
+                        <p className="text-xl font-black text-rose-600">₦{previousDebt.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] font-bold text-rose-400 uppercase tracking-tight">Owed from previous terms</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Academic Session</label>
+                    <select
+                      value={paymentData.session}
+                      onChange={(e) => setPaymentData({...paymentData, session: e.target.value})}
+                      className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-bold text-slate-900 transition-all text-sm"
+                    >
+                      {['2023/2024', '2024/2025', '2025/2026', '2026/2027'].map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Term</label>
+                    <select
+                      value={paymentData.term}
+                      onChange={(e) => setPaymentData({...paymentData, term: e.target.value})}
+                      className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-bold text-slate-900 transition-all text-sm"
+                    >
+                      <option value="1st">1st Term</option>
+                      <option value="2nd">2nd Term</option>
+                      <option value="3rd">3rd Term</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount Due (Total)</label>
@@ -478,7 +619,7 @@ export default function FeeManagement() {
                         required
                         value={paymentData.total_amount}
                         onChange={(e) => setPaymentData({...paymentData, total_amount: e.target.value})}
-                        className="w-full pl-8 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-black text-slate-900 transition-all"
+                        className="w-full pl-8 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-black text-slate-900 transition-all"
                       />
                     </div>
                   </div>
@@ -507,7 +648,7 @@ export default function FeeManagement() {
                         onClick={() => setPaymentData({...paymentData, method: method as any})}
                         className={`py-3 px-2 rounded-xl text-[10px] font-black uppercase tracking-tight border transition-all ${
                           paymentData.method === method 
-                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg' 
+                            ? 'bg-brand-purple border-brand-purple text-white shadow-lg shadow-purple-200' 
                             : 'bg-white border-slate-100 text-slate-500 hover:border-slate-300'
                         }`}
                       >
@@ -517,23 +658,30 @@ export default function FeeManagement() {
                   </div>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Notes / Remarks</label>
+                  <textarea
+                    value={paymentData.notes}
+                    onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
+                    placeholder="Optional transaction reference or note..."
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-medium text-slate-900 transition-all text-sm h-20 resize-none"
+                  />
+                </div>
+
                 <div className="mt-4 p-4 bg-amber-50 rounded-2xl border border-amber-100 flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
                   <p className="text-[10px] text-amber-900 font-bold leading-relaxed uppercase">
-                    Confirm payment with student before proceeding. Final Status: 
-                    <span className="ml-1 text-slate-900">
-                      { (Number(selectedStudent?.fee_records?.[0]?.amount_paid || 0) + Number(paymentData.amount)) >= Number(paymentData.total_amount) ? 'FULLY PAID' : 'PARTIAL' }
-                    </span>
+                    Payment will be applied to <span className="text-brand-purple underline">{paymentData.term} Term, {paymentData.session} Session</span>.
                   </p>
                 </div>
 
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-brand-purple text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-purple-700 transition-all shadow-xl shadow-purple-100 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Finalize & Post Payment
+                  Confirm Payment
                 </button>
               </form>
             </motion.div>
@@ -559,7 +707,7 @@ export default function FeeManagement() {
             >
               <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-600 rounded-2xl shadow-lg shadow-blue-100">
+                  <div className="p-3 bg-brand-purple rounded-2xl shadow-lg shadow-purple-100">
                     <History className="w-6 h-6 text-white" />
                   </div>
                   <div>
@@ -582,12 +730,12 @@ export default function FeeManagement() {
                       {transactions.map((tx) => (
                         <div key={tx.id} className="p-6 bg-slate-50 rounded-3xl border border-slate-100 flex items-start gap-4">
                           <div className="p-2 bg-white rounded-xl shadow-sm">
-                            <Receipt className="w-5 h-5 text-blue-600" />
+                            <Receipt className="w-5 h-5 text-brand-purple" />
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                               <p className="text-lg font-black text-slate-900">₦{Number(tx.amount).toLocaleString()}</p>
-                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-md text-[9px] font-black uppercase">
+                              <span className="px-2 py-0.5 bg-purple-100 text-brand-purple rounded-md text-[9px] font-black uppercase">
                                 {tx.payment_method}
                               </span>
                             </div>
@@ -605,8 +753,10 @@ export default function FeeManagement() {
                                 </p>
                               </div>
                               <div className="flex items-center gap-2 text-slate-500">
-                                <CreditCard className="w-3 h-3 text-slate-400" />
-                                <p className="text-[10px] font-bold tracking-tight uppercase">REC: {tx.receipt_number}</p>
+                                <div className="flex items-center gap-1">
+                                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                                  <p className="text-[9px] font-black tracking-tight uppercase text-brand-purple">{tx.term} Term | {tx.session}</p>
+                                </div>
                               </div>
                               {tx.cashier && (
                                 <div className="flex items-center gap-2 text-slate-500">
@@ -621,7 +771,7 @@ export default function FeeManagement() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-6 bg-blue-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100">
+                      <div className="p-6 bg-indigo-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-purple-100">
                         <div className="p-2 bg-white/10 rounded-xl">
                           <Wallet className="w-5 h-5 text-white/70" />
                         </div>
@@ -673,7 +823,7 @@ export default function FeeManagement() {
               <div className="p-8 bg-slate-50/50 border-t border-slate-50 flex justify-end">
                 <button
                   onClick={() => setIsHistoryModalOpen(false)}
-                  className="px-8 py-3 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200"
+                  className="px-8 py-3 bg-brand-purple text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-purple-700 transition-all shadow-xl shadow-purple-100"
                 >
                   Close History
                 </button>

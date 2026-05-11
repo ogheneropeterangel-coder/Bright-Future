@@ -46,12 +46,16 @@ export interface FeeRecord {
 
 export interface FeeTransaction {
   id: number;
+  student_id: number;
   fee_record_id: number;
   amount: number;
   payment_method: 'Cash' | 'Bank Transfer' | 'POS' | 'Online';
-  cashier_id: string;
+  received_by: string;
+  term: string;
+  session: string;
+  notes?: string;
   transaction_date: string;
-  receipt_number: string;
+  receipt_number?: string;
   cashier?: Profile;
 }
 
@@ -106,6 +110,7 @@ export interface Result {
 export interface Settings {
   id: number;
   school_name: string;
+  school_address?: string;
   school_logo_url?: string;
   school_motto?: string;
   current_term: string;

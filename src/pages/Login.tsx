@@ -171,10 +171,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-brand-milk p-4 relative overflow-hidden font-sans">
       {/* Futuristic Background */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-20" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
         
         {/* Animated Orbs */}
         <motion.div 
@@ -184,7 +184,7 @@ export default function Login() {
             y: [0, 50, 0]
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-40 -left-40 w-96 h-96 bg-blue-600/20 rounded-full blur-[100px]"
+          className="absolute -top-40 -left-40 w-96 h-96 bg-brand-purple/10 rounded-full blur-[100px]"
         />
         <motion.div 
           animate={{ 
@@ -193,79 +193,79 @@ export default function Login() {
             y: [0, -50, 0]
           }}
           transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-600/20 rounded-full blur-[100px]"
+          className="absolute -bottom-40 -right-40 w-96 h-96 bg-brand-purple/20 rounded-full blur-[100px]"
         />
         
         {/* Student Background Image (Transparent & Filtered) */}
-        <div className="absolute inset-0 z-[-1] opacity-20 grayscale brightness-50 contrast-125">
+        <div className="absolute inset-0 z-[-1] opacity-5 grayscale contrast-125">
           <img 
             src="https://images.unsplash.com/photo-1523050853064-80d8390b4458?q=80&w=2000&auto=format&fit=crop" 
             alt="School background" 
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-slate-950/80" />
+          <div className="absolute inset-0 bg-brand-milk/60" />
         </div>
       </div>
 
-      <Toaster position="top-right" theme="dark" />
+      <Toaster position="top-right" theme="light" />
       
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="max-w-md w-full bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] p-8 md:p-12 border border-slate-800 shadow-2xl relative z-10"
+        className="max-w-md w-full bg-white/80 backdrop-blur-3xl rounded-[2.5rem] p-8 md:p-12 border border-white shadow-2xl relative z-10"
       >
         <div className="flex flex-col items-center mb-10">
           <motion.div 
             whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-20 h-20 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-blue-500/20 relative"
+            className="w-20 h-20 bg-brand-purple rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-purple-500/20 relative"
           >
             {logoUrl ? (
               <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
             ) : (
               <School className="w-10 h-10 text-white" />
             )}
-            <div className="absolute -inset-1 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-2xl blur opacity-30 animate-pulse" />
+            <div className="absolute -inset-1 bg-brand-purple rounded-2xl blur opacity-30 animate-pulse" />
           </motion.div>
           
           <div className="text-center">
-            <h1 className="text-3xl font-black text-white tracking-tight mb-1 uppercase">
+            <h1 className="text-3xl font-black text-brand-slate tracking-tight mb-1 uppercase">
               {schoolName}
             </h1>
-            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] opacity-80">{schoolMotto}</p>
+            <p className="text-[10px] font-black text-brand-purple uppercase tracking-[0.3em] opacity-80">{schoolMotto}</p>
           </div>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Portal Access ID</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Portal Access ID</label>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Mail className="w-4 h-4 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
+                <Mail className="w-4 h-4 text-slate-300 group-focus-within:text-brand-purple transition-colors" />
               </div>
               <input
                 type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full pl-11 pr-4 py-3.5 bg-slate-950/50 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-white font-medium text-sm placeholder:text-slate-700"
+                className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-purple-500/20 focus:border-brand-purple outline-none transition-all text-brand-slate font-medium text-sm placeholder:text-slate-300"
                 placeholder="Username or Admission No."
               />
             </div>
           </div>
 
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">System Cipher</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">System Cipher</label>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <Lock className="w-4 h-4 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
+                <Lock className="w-4 h-4 text-slate-300 group-focus-within:text-brand-purple transition-colors" />
               </div>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-11 pr-4 py-3.5 bg-slate-950/50 border border-slate-800 rounded-2xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-white font-medium text-sm placeholder:text-slate-700"
+                className="w-full pl-11 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-purple-500/20 focus:border-brand-purple outline-none transition-all text-brand-slate font-medium text-sm placeholder:text-slate-300"
                 placeholder="••••••••"
               />
             </div>
@@ -276,7 +276,7 @@ export default function Login() {
             whileTap={{ scale: 0.99 }}
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl shadow-xl shadow-blue-500/10 transition-all flex items-center justify-center gap-3 disabled:opacity-50 mt-6 text-xs uppercase tracking-[0.2em]"
+            className="w-full bg-brand-purple hover:bg-purple-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-purple-500/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 mt-6 text-xs uppercase tracking-[0.2em]"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -289,19 +289,19 @@ export default function Login() {
           </motion.button>
         </form>
 
-        <div className="mt-10 pt-8 border-t border-slate-800/50 text-center space-y-6">
+        <div className="mt-10 pt-8 border-t border-slate-100 text-center space-y-6">
           <div className="space-y-2">
             <p className="text-xs text-slate-500">
-              New staff member? <Link to="/register" className="text-blue-400 font-bold hover:text-blue-300 transition-colors underline underline-offset-4 decoration-blue-500/30">Create Account</Link>
+              New staff member? <Link to="/register" className="text-brand-purple font-bold hover:text-purple-700 transition-colors underline underline-offset-4 decoration-purple-500/30">Create Account</Link>
             </p>
-            <p className="text-[10px] text-slate-600">
-              Forgot access details? <span className="text-slate-400 font-bold hover:text-white cursor-pointer transition-colors">Contact Registry</span>
+            <p className="text-[10px] text-slate-400">
+              Forgot access details? <span className="text-slate-500 font-bold hover:text-brand-slate cursor-pointer transition-colors">Contact Registry</span>
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-6 opacity-40">
+          <div className="flex flex-wrap items-center justify-center gap-6 opacity-60">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              <div className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse" />
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap">Encryption Active</span>
             </div>
             <div className="flex items-center gap-2">
