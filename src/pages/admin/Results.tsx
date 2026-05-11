@@ -353,6 +353,137 @@ export default function Results() {
     return rank + "th";
   };
 
+  const getSubjectAbbreviation = (name: string) => {
+    const common: {[key: string]: string} = {
+      'Mathematics': 'MATH',
+      'English Language': 'ENG',
+      'Basic Science': 'B.SCI',
+      'Basic Technology': 'B.TECH',
+      'Social Studies': 'SOC',
+      'Civic Education': 'CIVIC',
+      'Christian Religious Studies': 'CRS',
+      'Islamic Religious Studies': 'IRS',
+      'Physical and Health Education': 'PHE',
+      'Agricultural Science': 'AGRI',
+      'Home Economics': 'H.ECON',
+      'Fine Arts': 'ARTS',
+      'Cultural and Creative Arts': 'CCA',
+      'Computer Studies': 'COMP',
+      'Data Processing': 'DATA',
+      'Biology': 'BIO',
+      'Physics': 'PHY',
+      'Chemistry': 'CHM',
+      'Economics': 'ECON',
+      'Government': 'GOVT',
+      'Geography': 'GEO',
+      'Literature in English': 'LIT',
+      'Commerce': 'COMM',
+      'Financial Accounting': 'ACC',
+      'Visual Arts': 'VIS',
+      'Music': 'MUS',
+    };
+    
+    if (common[name]) return common[name];
+    
+    // Generic rule: take first word if it represents well, or first 4-5 chars
+    const firstWord = name.split(' ')[0];
+    if (firstWord.length >= 3 && firstWord.length <= 5) return firstWord.toUpperCase();
+    
+    return name.substring(0, 4).toUpperCase();
+  };
+
+  const exportBroadSheet = () => {
+    if (!selectedClass || students.length === 0) {
+      toast.error("Please select a class with students first");
+      return;
+    }
+
+    try {
+      const className = classes.find(c => c.id === parseInt(selectedClass))?.class_name || 'Class';
+      const term = settings?.current_term || 'Term';
+      const session = settings?.current_session.replace('/', '-') || 'Session';
+      
+      // Header rows
+      const headers = ['S/N', 'Admission No', 'Full Name'];
+      classSubjects.forEach(sub => {
+        const abbr = getSubjectAbbreviation(sub.subject_name);
+        headers.push(`${abbr} CA1`, `${abbr} CA2`, `${abbr} EXAM`, `${abbr} TOT`);
+      });
+      headers.push('TOTAL SCORE', 'AVERAGE', 'POSITION');
+
+      // Data rows
+      // First, we need to calculate all student stats for positions
+      const allStudentStats = students.map(s => {
+        const studentResults = classResults.filter(r => r.student_id === s.id);
+        const subjectsWithScores = studentResults.filter(r => (Number(r.ca1_score || 0) + Number(r.ca2_score || 0) + Number(r.exam_score || 0)) > 0);
+        
+        let total = 0;
+        subjectsWithScores.forEach(r => {
+          total += (Number(r.ca1_score || 0) + Number(r.ca2_score || 0) + Number(r.exam_score || 0));
+        });
+        
+        const average = subjectsWithScores.length > 0 ? (total / subjectsWithScores.length) : 0;
+        
+        return {
+          id: s.id,
+          total,
+          average,
+          eligible: subjectsWithScores.length > 0
+        };
+      });
+
+      // Sort by average to get positions
+      const sortedStats = [...allStudentStats].sort((a, b) => b.average - a.average);
+
+      const csvRows = [headers.join(',')];
+
+      students.forEach((student, index) => {
+        const stats = allStudentStats.find(st => st.id === student.id);
+        const rankIndex = sortedStats.findIndex(st => st.id === student.id);
+        const rank = stats?.eligible ? rankIndex + 1 : '-';
+
+        const row = [
+          index + 1,
+          `"${student.admission_number}"`, // Quote to keep leading zeros if any
+          `"${student.first_name} ${student.last_name}"`
+        ];
+
+        classSubjects.forEach(sub => {
+          const res = classResults.find(r => r.student_id === student.id && r.subject_id === sub.id);
+          const ca1 = res?.ca1_score || 0;
+          const ca2 = res?.ca2_score || 0;
+          const exam = res?.exam_score || 0;
+          const tot = Number(ca1) + Number(ca2) + Number(exam);
+          
+          row.push(ca1, ca2, exam, tot);
+        });
+
+        row.push(
+          stats?.total || 0,
+          stats?.average.toFixed(1) || 0,
+          rank
+        );
+
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `BroadSheet_${className}_${term.replace(' ', '_')}_${session}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Broad sheet exported successfully");
+    } catch (error: any) {
+      console.error("Export error:", error);
+      toast.error("Failed to export broad sheet");
+    }
+  };
+
   const getRemark = (score: number) => {
     if (score >= 75) return 'Excellent';
     if (score >= 70) return 'Very Good';
@@ -457,14 +588,25 @@ export default function Results() {
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <Filter className="w-3 h-3" /> Step 1: Select Class
               </label>
-              <select
-                value={selectedClass}
-                onChange={(e) => fetchStudents(e.target.value)}
-                className="w-full px-5 py-3 bg-slate-50 border-2 border-transparent border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none cursor-pointer"
-              >
-                <option value="">-- Choose Level --</option>
-                {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select
+                  value={selectedClass}
+                  onChange={(e) => fetchStudents(e.target.value)}
+                  className="flex-1 px-5 py-3 bg-slate-50 border-2 border-transparent border-slate-100 rounded-2xl focus:border-blue-500 focus:bg-white transition-all outline-none font-bold text-slate-700 appearance-none cursor-pointer"
+                >
+                  <option value="">-- Choose Level --</option>
+                  {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}</option>)}
+                </select>
+                {selectedClass && (
+                  <button 
+                    onClick={() => exportBroadSheet()}
+                    className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg hover:bg-emerald-700 transition-all flex items-center justify-center group"
+                    title="Export Broad Sheet"
+                  >
+                    <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  </button>
+                )}
+              </div>
             </div>
 
             <AnimatePresence mode="wait">
