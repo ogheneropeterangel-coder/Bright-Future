@@ -9,6 +9,7 @@ import {
   Receipt,
   Plus,
   Trash2,
+  Edit2,
   Table as TableIcon
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
@@ -22,6 +23,7 @@ export default function FeeStandards() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
+  const [isEditingId, setIsEditingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -40,6 +42,7 @@ export default function FeeStandards() {
           .select('*, class:classes(class_name)')
           .eq('term', settings?.current_term)
           .eq('session', settings?.current_session)
+          .order('created_at', { ascending: false })
       ]);
 
       setClasses(classesData || []);
@@ -51,30 +54,44 @@ export default function FeeStandards() {
     }
   }
 
+  function handleEdit(standard: FeeStandard) {
+    setIsEditingId(standard.id);
+    setSelectedClassId(standard.class_id.toString());
+    setAmount(standard.amount.toString());
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetForm() {
+    setIsEditingId(null);
+    setSelectedClassId('');
+    setAmount('');
+  }
+
   async function saveStandard(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedClassId || !amount || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
-      console.log('FeeStandards: Saving standard. Role:', profile?.role);
+      const payload: any = {
+        class_id: parseInt(selectedClassId),
+        term: settings?.current_term,
+        session: settings?.current_session,
+        amount: parseFloat(amount)
+      };
+
+      if (isEditingId) {
+        payload.id = isEditingId;
+      }
+
       const { error } = await supabase
         .from('fee_standards')
-        .upsert({
-          class_id: parseInt(selectedClassId),
-          term: settings?.current_term,
-          session: settings?.current_session,
-          amount: parseFloat(amount)
-        }, { onConflict: 'class_id,term,session' });
+        .upsert(payload, { onConflict: 'class_id,term,session' });
 
-      if (error) {
-        console.error('FeeStandards: Error saving standard:', error);
-        throw error;
-      }
+      if (error) throw error;
       
-      toast.success('Fee standard updated successfully');
-      setAmount('');
-      setSelectedClassId('');
+      toast.success(isEditingId ? 'Fee standard updated' : 'Fee standard added');
+      resetForm();
       fetchData();
     } catch (error: any) {
       toast.error(error.message);
@@ -126,8 +143,8 @@ export default function FeeStandards() {
             className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 space-y-6 sticky top-24"
           >
             <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <Plus className="w-5 h-5 text-blue-600" />
-              Add/Edit Fee
+              <Plus className={`w-5 h-5 ${isEditingId ? 'text-amber-500' : 'text-brand-purple'}`} />
+              {isEditingId ? 'Edit Fee Standard' : 'Add Fee Standard'}
             </h2>
             
             <div className="space-y-4">
@@ -137,13 +154,15 @@ export default function FeeStandards() {
                   required
                   value={selectedClassId}
                   onChange={(e) => setSelectedClassId(e.target.value)}
-                  className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-bold text-slate-900 transition-all cursor-pointer"
+                  disabled={!!isEditingId}
+                  className="w-full px-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-bold text-slate-900 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <option value="">Choose Class...</option>
                   {classes.map(cls => (
                     <option key={cls.id} value={cls.id}>{cls.class_name}</option>
                   ))}
                 </select>
+                {isEditingId && <p className="text-[9px] text-amber-600 font-bold mt-1 px-1 uppercase tracking-tight">Class cannot be changed while editing.</p>}
               </div>
 
               <div>
@@ -156,24 +175,39 @@ export default function FeeStandards() {
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full pl-8 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-blue-100 outline-none font-black text-slate-900 transition-all placeholder:text-slate-300"
+                    className="w-full pl-8 pr-4 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-purple-100 outline-none font-black text-slate-900 transition-all placeholder:text-slate-300"
                   />
                 </div>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
-            >
-              {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save Standard
-            </button>
+            <div className="flex gap-2">
+              {isEditingId && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="flex-1 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={`flex-[2] py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2 ${
+                  isEditingId 
+                    ? 'bg-amber-500 text-white shadow-amber-100 hover:bg-amber-600' 
+                    : 'bg-brand-purple text-white shadow-purple-100 hover:bg-purple-700'
+                }`}
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isEditingId ? 'Update Fee' : 'Save Standard'}
+              </button>
+            </div>
 
-            <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
-              <p className="text-[10px] text-blue-900 font-bold leading-relaxed uppercase">
+            <div className="p-4 bg-purple-50 rounded-2xl border border-purple-100 flex items-start gap-3">
+              <AlertCircle className="w-4 h-4 text-brand-purple mt-0.5 shrink-0" />
+              <p className="text-[10px] text-purple-900 font-bold leading-relaxed uppercase">
                 Revenue statistics on dashboards are calculated using these standard values.
               </p>
             </div>
@@ -226,14 +260,11 @@ export default function FeeStandards() {
                         </td>
                         <td className="px-8 py-5 text-right">
                           <button 
-                            onClick={() => {
-                              setSelectedClassId(s.class_id.toString());
-                              setAmount(s.amount.toString());
-                            }}
-                            className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-xl transition-all mr-2"
+                            onClick={() => handleEdit(s)}
+                            className="p-2.5 text-amber-500 hover:bg-amber-50 rounded-xl transition-all mr-2"
                             title="Edit"
                           >
-                            <Save className="w-4 h-4" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => deleteStandard(s.id)}

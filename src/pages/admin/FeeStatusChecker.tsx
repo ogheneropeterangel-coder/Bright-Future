@@ -32,6 +32,8 @@ export default function FeeStatusChecker() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [filterType, setFilterType] = useState<'all' | 'paid' | 'owing'>('all');
+  const [selectedSession, setSelectedSession] = useState<string>('');
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
   
   // Modal State
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
@@ -40,12 +42,18 @@ export default function FeeStatusChecker() {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (settings) {
+      setSelectedSession(settings.current_session);
+      setSelectedTerm(settings.current_term);
+      fetchInitialData();
+    }
+  }, [settings]);
 
   useEffect(() => {
-    fetchStudents();
-  }, [selectedClass]);
+    if (selectedSession && selectedTerm) {
+      fetchStudents();
+    }
+  }, [selectedClass, selectedSession, selectedTerm]);
 
   async function fetchInitialData() {
     try {
@@ -86,9 +94,9 @@ export default function FeeStatusChecker() {
     setIsModalOpen(true);
     setTransactions([]);
     
-    // Find the current fee record
+    // Find the relevant fee record
     const record = student.fee_records?.find((f: any) => 
-      f.term === settings?.current_term && f.session === settings?.current_session
+      f.term === selectedTerm && f.session === selectedSession
     );
 
     if (record) {
@@ -96,7 +104,7 @@ export default function FeeStatusChecker() {
       try {
         const { data, error } = await supabase
           .from('fee_transactions')
-          .select('*, cashier:profiles(name)')
+          .select('*, cashier:profiles!fee_transactions_received_by_fkey(name)')
           .eq('fee_record_id', record.id)
           .order('transaction_date', { ascending: false });
 
@@ -112,7 +120,7 @@ export default function FeeStatusChecker() {
 
   const processedStudents = students.filter(student => {
     const record = student.fee_records?.find((f: any) => 
-      f.term === settings?.current_term && f.session === settings?.current_session
+      f.term === selectedTerm && f.session === selectedSession
     );
     const matchesSearch = `${student.first_name} ${student.last_name} ${student.admission_number}`
       .toLowerCase()
@@ -120,15 +128,20 @@ export default function FeeStatusChecker() {
     
     if (!matchesSearch) return false;
     
-    if (filterType === 'paid') return record?.status === 'Paid';
-    if (filterType === 'owing') return !record || record.status !== 'Paid';
+    if (filterType === 'paid') {
+      return record && Number(record.amount_paid) >= Number(record.total_amount) && Number(record.total_amount) > 0;
+    }
+    if (filterType === 'owing') {
+      const balance = record ? Number(record.total_amount) - Number(record.amount_paid) : 0;
+      return !record || balance > 0;
+    }
     return true;
   });
 
   const exportToExcel = () => {
     const data = processedStudents.map(s => {
       const record = s.fee_records?.find((f: any) => 
-        f.term === settings?.current_term && f.session === settings?.current_session
+        f.term === selectedTerm && f.session === selectedSession
       );
       return {
         'Admission No': s.admission_number,
@@ -149,8 +162,19 @@ export default function FeeStatusChecker() {
   };
 
   const totals = {
-    paid: processedStudents.filter(s => s.fee_records?.some((f: any) => f.status === 'Paid' && f.term === settings?.current_term)).length,
-    owing: processedStudents.filter(s => !s.fee_records?.some((f: any) => f.status === 'Paid' && f.term === settings?.current_term)).length
+    paid: processedStudents.filter(s => {
+      const record = s.fee_records?.find((f: any) => 
+        f.term === selectedTerm && f.session === selectedSession
+      );
+      return record && Number(record.amount_paid) >= Number(record.total_amount) && Number(record.total_amount) > 0;
+    }).length,
+    owing: processedStudents.filter(s => {
+      const record = s.fee_records?.find((f: any) => 
+        f.term === selectedTerm && f.session === selectedSession
+      );
+      const balance = record ? Number(record.total_amount) - Number(record.amount_paid) : 0;
+      return !record || balance > 0;
+    }).length
   };
 
   return (
@@ -160,15 +184,38 @@ export default function FeeStatusChecker() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Fee Status Checker</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Monitor fee compliance for {settings?.current_term} Term {settings?.current_session}.</p>
+          <p className="text-slate-500 font-medium tracking-tight">Monitor fee compliance for {selectedTerm} Term {selectedSession}.</p>
         </div>
-        <button
-          onClick={exportToExcel}
-          className="flex items-center justify-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-95"
-        >
-          <Download className="w-4 h-4" />
-          Export Report (Excel)
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm">
+            <select
+              value={selectedSession}
+              onChange={(e) => setSelectedSession(e.target.value)}
+              className="px-3 py-1.5 bg-transparent border-none outline-none text-xs font-black text-slate-900"
+            >
+              {['2024/2025', '2025/2026', '2026/2027'].map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <div className="w-px h-4 bg-slate-100 my-auto mx-1" />
+            <select
+              value={selectedTerm}
+              onChange={(e) => setSelectedTerm(e.target.value)}
+              className="px-3 py-1.5 bg-transparent border-none outline-none text-xs font-black text-slate-900"
+            >
+              {['1st', '2nd', '3rd'].map(t => (
+                <option key={t} value={t}>{t} Term</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={exportToExcel}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-purple text-white rounded-xl font-bold hover:bg-purple-700 shadow-lg shadow-purple-200 transition-all active:scale-95 text-sm"
+          >
+            <Download className="w-4 h-4" />
+            Export
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -229,7 +276,7 @@ export default function FeeStatusChecker() {
             </button>
             <button
               onClick={() => setFilterType('owing')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${filterType === 'owing' ? 'bg-rose-500 text-white shadow-lg shadow-rose-100' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${filterType === 'owing' ? 'bg-brand-purple text-white shadow-lg shadow-purple-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               OWING
             </button>
@@ -257,9 +304,22 @@ export default function FeeStatusChecker() {
                 ))
               ) : processedStudents.map((student) => {
                 const record = student.fee_records?.find((f: any) => 
-                  f.term === settings?.current_term && f.session === settings?.current_session
+                  f.term === selectedTerm && f.session === selectedSession
                 );
-                const isPaid = record?.status === 'Paid';
+                
+                const expected = record ? Number(record.total_amount) : 0;
+                const paid = record ? Number(record.amount_paid) : 0;
+                const currentBalance = expected - paid;
+                
+                const isPaid = expected > 0 && paid >= expected;
+                const isPartial = paid > 0 && paid < expected;
+                const isNotPaid = !record || (expected > 0 && paid === 0);
+                
+                // For "Total Debt" across all terms
+                const totalDebt = (student.fee_records || []).reduce((sum: number, r: any) => 
+                  sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
+                );
+                
                 const isLocked = record ? record.results_locked : true;
 
                 return (
@@ -270,23 +330,42 @@ export default function FeeStatusChecker() {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isPaid ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isPaid ? 'bg-emerald-100 text-emerald-600' : isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}>
                           {student.first_name[0]}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">{student.first_name} {student.last_name}</p>
+                          <div className="flex items-center gap-2">
+                             <p className="font-bold text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors">{student.first_name} {student.last_name}</p>
+                             {(currentBalance > 0 || totalDebt > 0) && (
+                               <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[8px] font-black rounded uppercase">
+                                 Owes ₦{(currentBalance || totalDebt).toLocaleString()}
+                               </span>
+                             )}
+                          </div>
                           <p className="text-[10px] text-slate-500 font-mono font-bold tracking-tight uppercase">{student.class?.class_name} • {student.admission_number}</p>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-3 py-1 font-black text-[9px] uppercase tracking-widest rounded-full border ${
-                        isPaid 
-                          ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                          : 'bg-rose-50 text-rose-600 border-rose-100'
-                      }`}>
-                        {isPaid ? 'Confirmed Paid' : 'Unpaid / Owing'}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`px-3 py-1 font-black text-[9px] uppercase tracking-widest rounded-full border ${
+                          isPaid 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                            : isPartial ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100'
+                        }`}>
+                          {isPaid ? 'Fully Paid' : isPartial ? 'Partial Payment' : 'Owing / Not Paid'}
+                        </span>
+                        {currentBalance > 0 && (
+                          <span className="text-[10px] font-black text-rose-600 uppercase tracking-tight">
+                            ₦{currentBalance.toLocaleString()} Due
+                          </span>
+                        )}
+                        {totalDebt > currentBalance && (
+                          <span className="text-[8px] font-bold text-amber-500 uppercase tracking-tight">
+                            Total ₦{totalDebt.toLocaleString()} debt
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center gap-2">
@@ -308,7 +387,11 @@ export default function FeeStatusChecker() {
                         <span className="text-[9px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">View Details</span>
                         {isPaid ? (
                           <div className="p-1 px-3 bg-emerald-50 rounded-lg text-emerald-600 text-[10px] font-bold">
-                            VERIFIED
+                            FULL PAYMENT
+                          </div>
+                        ) : isPartial ? (
+                          <div className="p-1 px-3 bg-amber-50 rounded-lg text-amber-600 text-[10px] font-bold">
+                            PARTIAL
                           </div>
                         ) : (
                           <div className="p-1 px-3 bg-rose-50 rounded-lg text-rose-600 text-[10px] font-bold">
@@ -410,42 +493,70 @@ export default function FeeStatusChecker() {
                       ))}
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="p-6 bg-blue-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100">
-                        <div className="p-2 bg-white/10 rounded-xl">
-                          <Wallet className="w-5 h-5 text-white/70" />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Total Paid</p>
-                          <p className="text-xl font-black tracking-tight">₦{transactions.reduce((sum, tx) => sum + Number(tx.amount), 0).toLocaleString()}</p>
-                        </div>
-                      </div>
-                      
                       {(() => {
                         const record = selectedStudent?.fee_records?.find((f: any) => 
-                          f.term === settings?.current_term && f.session === settings?.current_session
+                          f.term === selectedTerm && f.session === selectedSession
                         );
-                        const balance = record ? Number(record.total_amount) - Number(record.amount_paid) : 0;
+                        const expected = record ? Number(record.total_amount) : 0;
+                        const paid = record ? Number(record.amount_paid) : 0;
+                        const balance = expected - paid;
+                        const totalDebt = (selectedStudent?.fee_records || []).reduce((sum: number, r: any) => 
+                          sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
+                        );
                         
                         return (
-                          <div className={`p-6 rounded-3xl flex items-center gap-4 shadow-xl ${
-                            balance > 0 ? 'bg-rose-600 text-white shadow-rose-100' : 'bg-emerald-600 text-white shadow-emerald-100'
-                          }`}>
-                            <div className="p-2 bg-white/10 rounded-xl">
-                              <AlertCircle className="w-5 h-5 text-white/70" />
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                              <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Expected (Term)</p>
+                              <p className="text-sm font-black text-slate-900">₦{expected.toLocaleString()}</p>
                             </div>
-                            <div>
-                              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                                {balance > 0 ? 'Balance Owing' : 'Fully Paid'}
-                              </p>
-                              <p className="text-xl font-black tracking-tight">
-                                {balance > 0 ? `₦${balance.toLocaleString()}` : 'CLEARED'}
-                              </p>
+                            <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                              <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Paid (Term)</p>
+                              <p className="text-sm font-black text-emerald-600">₦{paid.toLocaleString()}</p>
+                            </div>
+                            <div className={`p-4 rounded-2xl border text-center ${balance > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
+                              <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${balance > 0 ? 'text-rose-400' : 'text-slate-400'}`}>Balance (Term)</p>
+                              <p className={`text-sm font-black ${balance > 0 ? 'text-rose-600' : 'text-slate-600'}`}>₦{balance.toLocaleString()}</p>
                             </div>
                           </div>
                         );
                       })()}
-                    </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="p-6 bg-blue-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100">
+                          <div className="p-2 bg-white/10 rounded-xl">
+                            <Wallet className="w-5 h-5 text-white/70" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Total Paid (All History)</p>
+                            <p className="text-xl font-black tracking-tight">₦{transactions.reduce((sum, tx) => sum + Number(tx.amount), 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                        
+                        {(() => {
+                           const totalDebt = (selectedStudent?.fee_records || []).reduce((sum: number, r: any) => 
+                             sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
+                           );
+                        
+                          return (
+                            <div className={`p-6 rounded-3xl flex items-center gap-4 shadow-xl ${
+                              totalDebt > 0 ? 'bg-rose-600 text-white shadow-rose-100' : 'bg-emerald-600 text-white shadow-emerald-100'
+                            }`}>
+                              <div className="p-2 bg-white/10 rounded-xl">
+                                <AlertCircle className="w-5 h-5 text-white/70" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                                  {totalDebt > 0 ? 'Total Outstanding' : 'Fully Settled'}
+                                </p>
+                                <p className="text-xl font-black tracking-tight">
+                                  {totalDebt > 0 ? `₦${totalDebt.toLocaleString()}` : 'CLEARED'}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">

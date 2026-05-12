@@ -141,15 +141,15 @@ export default function DebtManagement() {
 
     // If filter status is set, check against current term record
     if (filterStatus !== 'all') {
-      if (filterStatus === 'Not Paid') {
-        // Not Paid: either no record or record status is 'Not Paid'
-        const isNotPaid = !currentRecord || currentRecord.status === 'Not Paid';
-        if (!isNotPaid) return false;
-      } else if (filterStatus === 'Partial') {
-        // Partial: must have a record with status 'Partial'
-        const isPartial = currentRecord?.status === 'Partial';
-        if (!isPartial) return false;
-      }
+      const expected = currentRecord ? Number(currentRecord.total_amount) : 0;
+      const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+      const isPaid = expected > 0 && paid >= expected;
+      const isPartial = paid > 0 && paid < expected;
+      const isNotPaid = !currentRecord || (expected > 0 && paid === 0);
+
+      if (filterStatus === 'Not Paid' && !isNotPaid) return false;
+      if (filterStatus === 'Partial' && !isPartial) return false;
+      if (filterStatus === 'Paid' && !isPaid) return false; // Adding Paid filter just in case
     }
 
     // A debtor is someone who has a balance in ANY term or specifically the selected term
@@ -287,17 +287,19 @@ export default function DebtManagement() {
             onChange={(e) => setSelectedTerm(e.target.value)}
             className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm"
           >
-            <option value="1st Term">1st Term</option>
-            <option value="2nd Term">2nd Term</option>
-            <option value="3rd Term">3rd Term</option>
+            <option value="1st">1st Term</option>
+            <option value="2nd">2nd Term</option>
+            <option value="3rd">3rd Term</option>
           </select>
-          <input
-            type="text"
-            placeholder="Session (e.g. 2023/2024)"
+          <select
             value={selectedSession}
             onChange={(e) => setSelectedSession(e.target.value)}
-            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm w-32"
-          />
+            className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-brand-purple outline-none font-bold text-sm"
+          >
+            {['2023/2024', '2024/2025', '2025/2026', '2026/2027'].map(s => (
+              <option key={s} value={s}>{s} Session</option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -307,10 +309,10 @@ export default function DebtManagement() {
             <thead className="bg-slate-50 text-slate-500 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="px-6 py-4">Student</th>
-                <th className="px-6 py-4">Term Paid</th>
-                <th className="px-6 py-4">Term Balance</th>
-                <th className="px-6 py-4">Carried Over</th>
-                <th className="px-6 py-4 text-right">Total Outstanding</th>
+                <th className="px-6 py-4 text-center">Payment Status</th>
+                <th className="px-6 py-4 text-center">Term Summary</th>
+                <th className="px-6 py-4 text-center">Carried Over</th>
+                <th className="px-6 py-4 text-right">Total Balance</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -338,6 +340,12 @@ export default function DebtManagement() {
                 const totalBalance = student.fee_records?.reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
                 const carriedOver = student.fee_records?.filter((f: any) => f.term !== selectedTerm || f.session !== selectedSession)
                                                .reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
+                
+                const expected = currentRecord ? Number(currentRecord.total_amount) : 0;
+                const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+                const isPaid = expected > 0 && paid >= expected;
+                const isPartial = paid > 0 && paid < expected;
+                const isNotPaid = !currentRecord || (expected > 0 && paid === 0);
 
                 return (
                   <tr 
@@ -346,37 +354,60 @@ export default function DebtManagement() {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-xs text-slate-600">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${isPaid ? 'bg-emerald-100 text-emerald-600' : isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}>
                           {student.first_name[0]}
                         </div>
                         <div>
-                          <p className="font-bold text-slate-900 tracking-tight">{student.first_name} {student.last_name}</p>
+                          <div className="flex items-center gap-2">
+                             <p className="font-bold text-slate-900 tracking-tight">{student.first_name} {student.last_name}</p>
+                             {totalBalance > 0 && (
+                               <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[8px] font-black rounded uppercase">
+                                 ₦{totalBalance.toLocaleString()} Due
+                               </span>
+                             )}
+                          </div>
                           <p className="text-[10px] text-slate-500 font-mono font-bold tracking-tight uppercase">{student.class?.class_name} • {student.admission_number}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-emerald-600">₦{(currentRecord?.amount_paid || 0).toLocaleString()}</p>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                          isPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                          isPartial ? 'bg-amber-50 text-amber-600 border-amber-100' : 
+                          'bg-rose-50 text-rose-600 border-rose-100'
+                        }`}>
+                          {isPaid ? 'Fully Paid' : isPartial ? 'Partial' : 'Not Paid'}
+                        </span>
+                        <p className="text-[10px] font-black text-emerald-600">₦{paid.toLocaleString()} Paid</p>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-xs font-bold text-rose-500">
-                      ₦{(currentRecord?.balance || 0).toLocaleString()}
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex flex-col items-center">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Expected: ₦{expected.toLocaleString()}</p>
+                        <p className="text-xs font-black text-rose-500">₦{(expected - paid).toLocaleString()} Due</p>
+                      </div>
                     </td>
-                    <td className="px-6 py-4">
-                       <span className={`text-[10px] font-black uppercase tracking-tight py-1 px-2 rounded-lg ${carriedOver > 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-400'}`}>
+                    <td className="px-6 py-4 text-center">
+                       <span className={`text-[10px] font-black uppercase tracking-tight py-1 px-3 rounded-xl border ${
+                         carriedOver > 0 ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                       }`}>
                          ₦{carriedOver.toLocaleString()}
                        </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <p className="text-lg font-black text-rose-600 tracking-tight">₦{totalBalance.toLocaleString()}</p>
-                      <button 
-                        onClick={() => {
-                          setSelectedStudent(student);
-                          setIsModalOpen(true);
-                        }}
-                        className="text-[9px] font-black uppercase tracking-widest text-brand-purple hover:underline"
-                      >
-                        View History
-                      </button>
+                      <div className="flex flex-col items-end">
+                        <p className="text-lg font-black text-rose-600 tracking-tight leading-none">₦{totalBalance.toLocaleString()}</p>
+                        <button 
+                          onClick={() => {
+                            setSelectedStudent(student);
+                            setIsModalOpen(true);
+                          }}
+                          className="text-[9px] font-black uppercase tracking-[0.1em] text-brand-purple hover:underline mt-1"
+                        >
+                          Breakdown
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

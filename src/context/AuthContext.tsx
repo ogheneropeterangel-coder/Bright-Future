@@ -25,10 +25,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchSettings();
 
     // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error && error.message.includes('Refresh Token Not Found')) {
+        console.warn('Session expired or invalid. Clearing state...');
+        supabase.auth.signOut();
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
       setUser(session?.user ?? null);
       if (session?.user) fetchProfile(session.user.id);
       else setLoading(false);
+    }).catch(err => {
+      console.error('Session initialization error:', err);
+      setLoading(false);
     });
 
     // Listen for changes on auth state (logged in, signed out, etc.)

@@ -39,6 +39,8 @@ export default function FeeManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [selectedSession, setSelectedSession] = useState<string>('');
+  const [selectedTerm, setSelectedTerm] = useState<string>('');
   
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -59,12 +61,18 @@ export default function FeeManagement() {
   const [previousDebt, setPreviousDebt] = useState(0);
 
   useEffect(() => {
-    fetchInitialData();
+    if (settings) {
+      setSelectedSession(settings.current_session);
+      setSelectedTerm(settings.current_term);
+      fetchInitialData();
+    }
   }, [settings]);
 
   useEffect(() => {
-    fetchStudents();
-  }, [selectedClass, filterStatus, settings]);
+    if (selectedSession && selectedTerm) {
+      fetchStudents();
+    }
+  }, [selectedClass, filterStatus, selectedSession, selectedTerm]);
 
   async function fetchInitialData() {
     try {
@@ -73,7 +81,7 @@ export default function FeeManagement() {
         { data: standardsData }
       ] = await Promise.all([
         supabase.from('classes').select('*').order('class_name'),
-        supabase.from('fee_standards').select('*').eq('term', settings?.current_term).eq('session', settings?.current_session)
+        supabase.from('fee_standards').select('*').eq('term', selectedTerm).eq('session', selectedSession)
       ]);
       setClasses(classesData || []);
       setFeeStandards(standardsData || []);
@@ -100,12 +108,30 @@ export default function FeeManagement() {
       const { data, error } = await query.order('last_name');
       if (error) throw error;
 
-      let filteredData = data || [];
+      // Enhance students with previous debt information
+      const studentsWithDebt = (data || []).map(student => {
+        const records = student.fee_records || [];
+        const currentRecord = records.find((f: any) => 
+          f.term === selectedTerm && f.session === selectedSession
+        );
+        
+        // Calculate debt from OTHER terms/sessions
+        const previousDebt = records
+          .filter((r: any) => !(r.term === selectedTerm && r.session === selectedSession))
+          .reduce((sum: number, r: any) => sum + (Number(r.total_amount) - Number(r.amount_paid)), 0);
+
+        return {
+          ...student,
+          current_record: currentRecord,
+          previous_debt: previousDebt,
+          total_owing: (currentRecord ? Number(currentRecord.total_amount) - Number(currentRecord.amount_paid) : 0) + previousDebt
+        };
+      });
+
+      let filteredData = studentsWithDebt;
       if (filterStatus !== 'all') {
-        filteredData = filteredData.filter(s => {
-          const record = s.fee_records?.find((f: any) => 
-            f.term === settings?.current_term && f.session === settings?.current_session
-          );
+        filteredData = filteredData.filter(student => {
+          const record = student.current_record;
           if (filterStatus === 'Paid') return record?.status === 'Paid';
           if (filterStatus === 'Partial') return record?.status === 'Partial';
           if (filterStatus === 'Not Paid') return !record || record.status === 'Not Paid';
@@ -159,8 +185,8 @@ export default function FeeManagement() {
     setPaymentData({
       amount: balance > 0 ? balance.toString() : '',
       total_amount: totalAmount.toString(),
-      term: settings?.current_term || '',
-      session: settings?.current_session || '',
+      term: selectedTerm,
+      session: selectedSession,
       method: 'Cash',
       notes: ''
     });
@@ -232,7 +258,7 @@ export default function FeeManagement() {
     try {
       const { data, error } = await supabase
         .from('fee_transactions')
-        .select('*, cashier:profiles(name)')
+        .select('*, cashier:profiles!fee_transactions_received_by_fkey(name)')
         .eq('fee_record_id', feeRecordId)
         .order('transaction_date', { ascending: false });
       
@@ -355,7 +381,28 @@ export default function FeeManagement() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Fee Management</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Process payments and manage access for {settings?.current_term} Term.</p>
+          <p className="text-slate-500 font-medium tracking-tight">Process payments for {selectedTerm} Term {selectedSession}.</p>
+        </div>
+        <div className="flex bg-white p-1 rounded-2xl border border-slate-200 shadow-sm">
+          <select
+            value={selectedSession}
+            onChange={(e) => setSelectedSession(e.target.value)}
+            className="px-3 py-1.5 bg-transparent border-none outline-none text-xs font-black text-slate-900"
+          >
+            {['2024/2025', '2025/2026', '2026/2027'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <div className="w-px h-4 bg-slate-100 my-auto mx-1" />
+          <select
+            value={selectedTerm}
+            onChange={(e) => setSelectedTerm(e.target.value)}
+            className="px-3 py-1.5 bg-transparent border-none outline-none text-xs font-black text-slate-900"
+          >
+            {['1st', '2nd', '3rd'].map(t => (
+              <option key={t} value={t}>{t} Term</option>
+            ))}
+          </select>
         </div>
       </header>
 
@@ -413,127 +460,168 @@ export default function FeeManagement() {
                     </td>
                   </tr>
                 ))
-              ) : filteredStudents.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-8 py-20 text-center">
-                    <div className="max-w-xs mx-auto">
-                      <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                        <Users className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <p className="text-slate-900 font-bold mb-1">No students found</p>
-                      <p className="text-sm text-slate-400">Try adjusting your filters or search term.</p>
-                    </div>
-                  </td>
-                </tr>
               ) : (
-                filteredStudents.map((student) => {
-                  const record = student.fee_records?.find((f: any) => 
-                    f.term === settings?.current_term && f.session === settings?.current_session
-                  );
-                  
-                  const status = record?.status || 'Not Paid';
-                  const expected = Number(record?.total_amount || 0);
-                  const paid = Number(record?.amount_paid || 0);
-                  const balance = expected - paid;
-                  const isLocked = record ? record.results_locked : true;
-
-                  return (
-                    <tr key={student.id} className="hover:bg-slate-50/50 transition-colors group">
-                      <td className="px-8 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black shadow-sm ${
-                            status === 'Paid' ? 'bg-emerald-100 text-emerald-600' : 
-                            status === 'Partial' ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            {student.first_name[0]}{student.last_name[0]}
+                <>
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-8 py-20 text-center">
+                        <div className="max-w-xs mx-auto">
+                          <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-100">
+                            <Users className="w-8 h-8 text-slate-300" />
                           </div>
-                          <div>
-                            <p className="font-black text-slate-900 uppercase tracking-tight text-sm">
-                              {student.first_name} {student.last_name}
-                            </p>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">
-                              {student.admission_number} • {student.class?.class_name}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-slate-900">₦{paid.toLocaleString()}</span>
-                              <span className="text-[10px] text-slate-400 font-bold uppercase leading-none">Paid</span>
-                            </div>
-                            {balance > 0 && (
-                              <div className="text-right">
-                                <span className="text-[9px] font-black text-rose-500 uppercase tracking-tight">Owes ₦{balance.toLocaleString()}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex items-center">
-                            <div 
-                              className={`h-full transition-all duration-500 ${
-                                status === 'Paid' ? 'bg-emerald-500' : 'bg-amber-500'
-                              }`} 
-                              style={{ width: `${expected > 0 ? (paid / expected) * 100 : 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] border ${
-                          status === 'Paid' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                          status === 'Partial' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                          'bg-rose-50 text-rose-600 border-rose-100'
-                        }`}>
-                          {status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4">
-                        <button
-                          onClick={() => record && toggleLock(student.id, record)}
-                          disabled={!record}
-                          className={`flex items-center gap-2 group transition-all ${
-                            isLocked ? 'text-slate-400' : 'text-brand-purple'
-                          }`}
-                        >
-                          {isLocked ? (
-                            <>
-                              <Lock className="w-4 h-4" />
-                              <span className="text-[10px] font-black uppercase">Restricted</span>
-                            </>
-                          ) : (
-                            <>
-                              <Unlock className="w-4 h-4" />
-                              <span className="text-[10px] font-black uppercase">Full Access</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openPaymentModal(student)}
-                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm"
-                            title="Process Payment"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => record && fetchHistory(record.id)}
-                            disabled={!record}
-                            className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm disabled:opacity-30"
-                            title="View Invoices"
-                          >
-                            <History className="w-4 h-4" />
-                          </button>
+                          <p className="text-slate-900 font-bold mb-1">No students found</p>
+                          <p className="text-sm text-slate-400">Try adjusting your filters or search term.</p>
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
+                  ) : (
+                    filteredStudents.map((student) => {
+                      const record = student.current_record;
+                      const expected = Number(record?.total_amount || 0);
+                      const paid = Number(record?.amount_paid || 0);
+                      
+                      const isPaid = expected > 0 && paid >= expected;
+                      const isPartial = paid > 0 && paid < expected;
+                      const isNotPaid = !record || (expected > 0 && paid === 0);
+                      
+                      const totalBalance = student.total_owing || 0;
+                      const isLocked = record ? record.results_locked : true;
+
+                      return (
+                        <tr key={student.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-8 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black shadow-sm ${
+                                isPaid ? 'bg-emerald-100 text-emerald-600' : 
+                                isPartial ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'
+                              }`}>
+                                {student.first_name[0]}{student.last_name[0]}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-black text-slate-900 uppercase tracking-tight text-sm">
+                                    {student.first_name} {student.last_name}
+                                  </p>
+                                  {(expected - paid) > 0 && (
+                                    <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[8px] font-black rounded uppercase">
+                                      Owes ₦{(expected - paid).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mt-1">
+                                  {student.admission_number} • {student.class?.class_name}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-8 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between gap-4">
+                                <div className="flex flex-col">
+                                  <div className="flex items-center gap-1.5">
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-none">Expected</p>
+                                    <span className="text-[10px] font-black text-slate-900 leading-none">₦{expected.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-none">Paid</p>
+                                    <span className="text-[10px] font-black text-emerald-600 leading-none">₦{paid.toLocaleString()}</span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  {totalBalance > 0 ? (
+                                    <div className="flex flex-col items-end">
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-[8px] text-rose-400 font-bold uppercase tracking-tight leading-none">Term Balance</p>
+                                        <span className="text-[10px] font-black text-rose-600 leading-none">₦{(expected - paid).toLocaleString()}</span>
+                                      </div>
+                                      {student.previous_debt > 0 && (
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                          <p className="text-[8px] text-amber-400 font-bold uppercase tracking-tight leading-none">Prev Debt</p>
+                                          <span className="text-[10px] font-black text-amber-600 leading-none">₦{student.previous_debt.toLocaleString()}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="bg-emerald-50 px-2 py-1 rounded-lg">
+                                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-tight">Status: Settled</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex items-center shadow-inner mt-2">
+                                <div 
+                                  className={`h-full transition-all duration-700 ease-out ${
+                                    totalBalance <= 0 ? 'bg-emerald-500' : 
+                                    (paid / expected) > 0.5 ? 'bg-amber-500' : 'bg-rose-400'
+                                  }`} 
+                                  style={{ width: `${expected > 0 ? Math.min((paid / expected) * 100, 100) : 0}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+                      <td className="px-8 py-4">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.1em] border w-fit ${
+                            isPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                            isPartial ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                            'bg-rose-50 text-rose-600 border-rose-100'
+                          }`}>
+                            {isPaid ? 'Fully Paid' : isPartial ? 'Partial Payment' : 'Not Paid'}
+                          </span>
+                          {totalBalance > 0 && (
+                            <span className="text-[9px] font-black text-rose-500 uppercase tracking-tight">
+                              ₦{totalBalance.toLocaleString()} Due
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                          <td className="px-8 py-4">
+                            <button
+                              onClick={() => record && toggleLock(student.id, record)}
+                              disabled={!record}
+                              className={`flex items-center gap-2 group transition-all ${
+                                isLocked ? 'text-slate-400' : 'text-brand-purple'
+                              }`}
+                            >
+                              {isLocked ? (
+                                <>
+                                  <Lock className="w-4 h-4" />
+                                  <span className="text-[10px] font-black uppercase">Restricted</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Unlock className="w-4 h-4" />
+                                  <span className="text-[10px] font-black uppercase">Full Access</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
+                          <td className="px-8 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => openPaymentModal(student)}
+                                className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm"
+                                title="Process Payment"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => record && fetchHistory(record.id)}
+                                disabled={!record}
+                                className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm disabled:opacity-30"
+                                title="View Invoices"
+                              >
+                                <History className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                    );
+                  })
+                )}
+              </>
+            )}
+          </tbody>
           </table>
         </div>
       </div>

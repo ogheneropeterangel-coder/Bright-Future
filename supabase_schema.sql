@@ -21,7 +21,7 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Ensure profiles table has the right column type
+-- Profiles
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
@@ -31,12 +31,9 @@ CREATE TABLE IF NOT EXISTS profiles (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- Add check constraint for roles if it doesn't exist
-DO $$ BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'profiles_role_check') THEN
-        ALTER TABLE profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('admin', 'teacher', 'student', 'cashier', 'exam_officer'));
-    END IF;
-END $$;
+-- Improve constraint to be more flexible and include all requested roles
+ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+ALTER TABLE profiles ADD CONSTRAINT profiles_role_check CHECK (role IN ('admin', 'teacher', 'student', 'cashier', 'exam_officer'));
 
 DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'fee_status') THEN
@@ -143,13 +140,17 @@ CREATE TABLE IF NOT EXISTS fee_transactions (
   fee_record_id BIGINT REFERENCES fee_records(id) ON DELETE CASCADE,
   amount NUMERIC NOT NULL,
   payment_method TEXT,
-  received_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  received_by UUID CONSTRAINT fee_transactions_received_by_fkey REFERENCES profiles(id) ON DELETE SET NULL,
   term TEXT NOT NULL,
   session TEXT NOT NULL,
   notes TEXT,
   transaction_date TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
+
+-- Create indexes for performance
+CREATE INDEX IF NOT EXISTS idx_fee_transactions_student_id ON fee_transactions(student_id);
+CREATE INDEX IF NOT EXISTS idx_fee_transactions_record_id ON fee_transactions(fee_record_id);
 
 -- Fee Standards
 CREATE TABLE IF NOT EXISTS fee_standards (

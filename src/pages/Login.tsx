@@ -189,21 +189,23 @@ export default function Login() {
         {/* Dynamic Brand Orbs */}
         <motion.div 
           animate={{ 
-            scale: [1, 1.2, 1],
-            x: [0, 50, 0],
-            y: [0, 30, 0],
+            scale: [1, 1.3, 1],
+            x: [0, 80, 0],
+            y: [0, 40, 0],
+            rotate: [0, 45, 0]
           }}
-          transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-20 -left-20 w-[40rem] h-[40rem] bg-brand-purple/10 rounded-full blur-[120px]"
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-20 -left-20 w-[45rem] h-[45rem] bg-brand-purple/15 rounded-full blur-[140px]"
         />
         <motion.div 
           animate={{ 
-            scale: [1, 1.3, 1],
-            x: [0, -50, 0],
-            y: [0, -30, 0],
+            scale: [1, 1.4, 1],
+            x: [0, -80, 0],
+            y: [0, -40, 0],
+            rotate: [0, -45, 0]
           }}
-          transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -bottom-40 -right-40 w-[45rem] h-[45rem] bg-brand-purple/15 rounded-full blur-[140px]"
+          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -bottom-40 -right-40 w-[50rem] h-[50rem] bg-brand-purple/20 rounded-full blur-[160px]"
         />
         
         {/* Milk Glass Gradient Overlay */}

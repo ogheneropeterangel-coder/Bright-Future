@@ -345,7 +345,7 @@ export default function Teachers() {
   const staffRoles = [
     { id: 'teacher', label: 'Teacher', color: 'bg-blue-600' },
     { id: 'cashier', label: 'Cashier', color: 'bg-amber-600' },
-    { id: 'exam_officer', label: 'Exam Officer', color: 'bg-purple-600' }
+    { id: 'exam_officer', label: 'Exam Officers', color: 'bg-purple-600' }
   ];
 
   return (
