@@ -286,6 +286,7 @@ export default function Students() {
   };
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<number | null>(null);
 
   async function deleteStudent(id: number) {
@@ -319,16 +320,26 @@ export default function Students() {
       return;
     }
     if (selectedStudents.length === 0) return;
-    if (!confirm(`This action will permanently delete ${selectedStudents.length} students. This cannot be undone. Are you absolutely sure you want to proceed?`)) return;
+    setIsBulkDeleteModalOpen(true);
+  }
 
+  async function confirmBulkDelete() {
+    setIsSubmitting(true);
     try {
+      // Delete students and their related records if they exist
+      // Note: CASCADE should handle this in DB, but we do it manually to be safe or if not set
       const { error } = await supabase.from('students').delete().in('id', selectedStudents);
       if (error) throw error;
-      toast.success(`${selectedStudents.length} students deleted`);
+      
+      toast.success(`${selectedStudents.length} students deleted permanently`);
       setSelectedStudents([]);
+      setIsBulkDeleteModalOpen(false);
       fetchData();
     } catch (error: any) {
-      toast.error(error.message);
+      console.error('Bulk delete error:', error);
+      toast.error(error.message || 'Failed to delete students. Some students might have existing records that prevent deletion.');
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -971,6 +982,38 @@ export default function Students() {
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+        {/* Bulk Delete Confirmation Modal */}
+      {isBulkDeleteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 className="w-8 h-8 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Bulk Delete Students?</h3>
+              <p className="text-slate-500 mb-6">
+                You are about to permanently delete <span className="font-bold text-red-600">{selectedStudents.length}</span> students. This action is irreversible and will remove all their records.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setIsBulkDeleteModalOpen(false)}
+                  className="flex-1 px-6 py-2 text-slate-600 hover:bg-slate-50 rounded-xl transition-colors font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmBulkDelete}
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 shadow-lg shadow-red-200 disabled:opacity-70 flex items-center justify-center gap-2 font-bold"
+                >
+                  {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Confirm Delete
                 </button>
               </div>
             </div>
