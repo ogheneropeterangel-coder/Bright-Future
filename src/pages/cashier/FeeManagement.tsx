@@ -699,7 +699,7 @@ export default function FeeManagement() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Term Total Fee</label>
                     <div className="relative">
@@ -725,6 +725,21 @@ export default function FeeManagement() {
                           return (Number(paymentData.total_amount) - Number(currentPaid)).toLocaleString();
                         })()}
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-400 border border-slate-100 shadow-sm font-black text-[10px]">FIXED</div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Admin Set Fee (Standard)</p>
+                      <p className="text-base font-black text-slate-900">
+                        {(() => {
+                          const standard = feeStandards.find(s => s.class_id === selectedStudent?.class_id && s.term === paymentData.term && s.session === paymentData.session);
+                          return standard ? `₦${Number(standard.amount).toLocaleString()}` : "Not Set";
+                        })()}
+                      </p>
                     </div>
                   </div>
                 </div>

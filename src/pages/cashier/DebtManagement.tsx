@@ -205,7 +205,7 @@ export default function DebtManagement() {
       const standard = feeStandards.find(st => st.class_id === s.class_id);
       const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
       const paid = record ? Number(record.amount_paid) : 0;
-      return (expected - paid) > 0;
+      return expected > 0 && (expected - paid) > 0;
     }).length;
 
     const partialDebtorsCount = students.filter(s => {
@@ -213,7 +213,7 @@ export default function DebtManagement() {
       const standard = feeStandards.find(st => st.class_id === s.class_id);
       const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
       const paid = record ? Number(record.amount_paid) : 0;
-      return paid > 0 && paid < expected;
+      return expected > 0 && paid > 0 && paid < expected;
     }).length;
 
     const stats = processedStudents.reduce((acc, s) => {
@@ -221,7 +221,7 @@ export default function DebtManagement() {
       const standard = feeStandards.find(st => st.class_id === s.class_id);
       const expected = standard?.amount || (current ? Number(current.total_amount) : 0);
       const paid = current ? Number(current.amount_paid) : 0;
-      const currentBalance = expected - Number(paid);
+      const currentBalance = Math.max(0, expected - Number(paid));
 
       const carried = s.fee_records?.filter((f: any) => f.term !== selectedTerm || f.session !== selectedSession)
                                  .reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
@@ -250,7 +250,7 @@ export default function DebtManagement() {
       partialDebtorsCount,
       complianceRating
     };
-  }, [processedStudents, students, selectedTerm, selectedSession]);
+  }, [processedStudents, students, selectedTerm, selectedSession, feeStandards]);
 
   return (
     <div className="space-y-6">
@@ -259,7 +259,7 @@ export default function DebtManagement() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Debt Management</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Monitor and track outstanding student balances across terms.</p>
+          <p className="text-slate-500 font-medium tracking-tight text-sm md:text-base">Monitor and track outstanding student balances across terms.</p>
         </div>
         <button
           onClick={exportToExcel}
@@ -270,8 +270,8 @@ export default function DebtManagement() {
         </button>
       </header>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-6 bg-slate-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-slate-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-6 bg-slate-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-slate-200 transition-transform hover:scale-[1.02]">
                   <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
                     <Users className="w-5 h-5 text-slate-300" />
                   </div>
@@ -280,7 +280,7 @@ export default function DebtManagement() {
                     <p className="text-2xl font-black">{totals.debtorsCount}</p>
                   </div>
                 </div>
-                <div className="p-6 bg-amber-500 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-amber-100">
+                <div className="p-6 bg-amber-500 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-amber-100 transition-transform hover:scale-[1.02]">
                   <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                     <TrendingUp className="w-5 h-5 text-white" />
                   </div>
@@ -289,7 +289,7 @@ export default function DebtManagement() {
                     <p className="text-2xl font-black">{totals.partialDebtorsCount}</p>
                   </div>
                 </div>
-                <div className="p-6 bg-rose-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-rose-100">
+                <div className="p-6 bg-rose-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-rose-100 transition-transform hover:scale-[1.02]">
                   <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
                     <AlertTriangle className="w-5 h-5" />
                   </div>
@@ -298,7 +298,7 @@ export default function DebtManagement() {
                     <p className="text-2xl font-black text-white">₦{totals.total.toLocaleString()}</p>
                   </div>
                 </div>
-                <div className="p-6 bg-blue-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100">
+                <div className="p-6 bg-blue-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100 transition-transform hover:scale-[1.02]">
                   <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
                     <CheckCircle2 className="w-5 h-5 text-white" />
                   </div>

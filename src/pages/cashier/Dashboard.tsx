@@ -48,53 +48,58 @@ export default function CashierDashboard() {
       ]);
 
       const totalStudentsCount = students?.length || 0;
-      const paid = fees?.filter(f => f.status === 'Paid').length || 0;
-      const partial = fees?.filter(f => f.status === 'Partial').length || 0;
-      const notPaid = totalStudentsCount - paid - partial;
-      
-      const collected = fees?.reduce((sum, f) => sum + Number(f.amount_paid), 0) || 0;
-      
-      // Calculate expected from standards
+      let paidCount = 0;
+      let partialCount = 0;
+      let notPaidCount = 0;
+      let collected = 0;
       let expected = 0;
       const outstandingList: any[] = [];
 
-      if (classes && standards) {
-        classes.forEach((clr: any) => {
-          const standard = standards.find(s => s.class_id === clr.id);
-          if (standard) {
-            const classCount = clr.students?.[0]?.count || 0;
-            const classFee = Number(standard.amount);
-            expected += classCount * classFee;
+      students?.forEach(s => {
+        const record = fees?.find(f => f.student_id === s.id);
+        const standard = standards?.find(st => st.class_id === s.class_id);
+        const classExpected = standard?.amount || (record ? Number(record.total_amount) : 0);
+        const classPaid = record ? Number(record.amount_paid) : 0;
+        const balance = classExpected - classPaid;
 
-            // Find specific students in this class who owe
-            const classStudents = students?.filter(s => s.class_id === clr.id) || [];
-            classStudents.forEach(s => {
-              const record = fees?.find(f => f.student_id === s.id);
-              const paidAmount = record ? Number(record.amount_paid) : 0;
-              const balance = classFee - paidAmount;
+        collected += classPaid;
+        expected += classExpected;
 
-              if (balance > 0) {
-                outstandingList.push({
-                  id: s.id,
-                  name: `${s.first_name} ${s.last_name}`,
-                  class: clr.class_name,
-                  balance: balance,
-                  status: record?.status || 'Not Paid'
-                });
-              }
-            });
+        if (classExpected > 0) {
+          if (classPaid >= classExpected) {
+            paidCount++;
+          } else if (classPaid > 0) {
+            partialCount++;
+          } else {
+            notPaidCount++;
           }
-        });
-      }
+        } else if (classPaid > 0) {
+          // Technically paid something but no fee set (maybe credit?)
+          paidCount++;
+        } else {
+          notPaidCount++;
+        }
+
+        if (balance > 0) {
+          const clr = classes?.find(c => c.id === s.class_id);
+          outstandingList.push({
+            id: s.id,
+            name: `${s.first_name} ${s.last_name}`,
+            class: clr?.class_name || 'Unknown',
+            balance: balance,
+            status: classPaid > 0 ? 'Partial' : 'Not Paid'
+          });
+        }
+      });
       
       setOutstandingStudents(outstandingList.sort((a, b) => b.balance - a.balance).slice(0, 5));
       const debt = expected - collected;
 
       setStats({
         totalStudents: totalStudentsCount,
-        paidStudents: paid,
-        partialStudents: partial,
-        notPaidStudents: notPaid,
+        paidStudents: paidCount,
+        partialStudents: partialCount,
+        notPaidStudents: notPaidCount,
         totalExpected: expected,
         totalCollected: collected,
         outstandingDebt: debt
@@ -113,20 +118,20 @@ export default function CashierDashboard() {
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Cashier Dashboard</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Welcome back, {profile?.name}. Financial oversight for {settings?.current_term} Term.</p>
+          <p className="text-slate-500 font-medium tracking-tight text-sm md:text-base">Welcome back, {profile?.name}. Financial oversight for {settings?.current_term} Term.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 flex items-center gap-2">
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-black uppercase tracking-widest">System Online</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">System Online</span>
           </div>
         </div>
       </header>
 
       {/* Payment Summary Section */}
       <section className="space-y-4">
-        <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-400">Payment Summary</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Payment Summary</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard 
             icon={Wallet} 
             label="Total Collected" 
