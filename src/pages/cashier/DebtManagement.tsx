@@ -17,7 +17,8 @@ import {
   ArrowRight,
   TrendingUp,
   X,
-  Loader2
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { Class } from '../../types';
@@ -29,6 +30,7 @@ export default function DebtManagement() {
   const { settings } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [feeStandards, setFeeStandards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
@@ -78,26 +80,30 @@ export default function DebtManagement() {
   }, [selectedStudent, isModalOpen]);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  useEffect(() => {
     if (settings) {
-      if (!selectedTerm) setSelectedTerm(settings.current_term);
-      if (!selectedSession) setSelectedSession(settings.current_session);
+      setSelectedSession(settings.current_session);
+      setSelectedTerm(settings.current_term);
     }
   }, [settings]);
 
   useEffect(() => {
-    if (selectedTerm && selectedSession) {
+    if (selectedSession && selectedTerm) {
+      fetchInitialData();
       fetchStudents();
     }
-  }, [selectedClass, selectedTerm, selectedSession]);
+  }, [selectedClass, selectedSession, selectedTerm, filterStatus]);
 
   async function fetchInitialData() {
     try {
-      const { data: classesData } = await supabase.from('classes').select('*').order('class_name');
+      const [
+        { data: classesData },
+        { data: standardsData }
+      ] = await Promise.all([
+        supabase.from('classes').select('*').order('class_name'),
+        supabase.from('fee_standards').select('*').eq('term', selectedTerm).eq('session', selectedSession)
+      ]);
       setClasses(classesData || []);
+      setFeeStandards(standardsData || []);
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -139,22 +145,24 @@ export default function DebtManagement() {
       f.term === selectedTerm && f.session === selectedSession
     );
 
+    const standard = feeStandards.find(s => s.class_id === student.class_id);
+    const expected = standard?.amount || (currentRecord ? Number(currentRecord.total_amount) : 0);
+    const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+    const currentBalance = expected - paid;
+
     // If filter status is set, check against current term record
     if (filterStatus !== 'all') {
-      const expected = currentRecord ? Number(currentRecord.total_amount) : 0;
-      const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
       const isPaid = expected > 0 && paid >= expected;
       const isPartial = paid > 0 && paid < expected;
-      const isNotPaid = !currentRecord || (expected > 0 && paid === 0);
+      const isNotPaid = paid === 0;
 
       if (filterStatus === 'Not Paid' && !isNotPaid) return false;
       if (filterStatus === 'Partial' && !isPartial) return false;
-      if (filterStatus === 'Paid' && !isPaid) return false; // Adding Paid filter just in case
+      if (filterStatus === 'Paid' && !isPaid) return false;
     }
 
     // A debtor is someone who has a balance in ANY term or specifically the selected term
-    // User wants "View list of debtors", which usually means people who owe SOMETHING.
-    const hasCurrentDebt = currentRecord && Number(currentRecord.balance) > 0;
+    const hasCurrentDebt = currentBalance > 0;
     const hasPreviousDebt = student.fee_records?.some((f: any) => 
       (f.term !== selectedTerm || f.session !== selectedSession) && Number(f.balance) > 0
     );
@@ -191,17 +199,58 @@ export default function DebtManagement() {
     toast.success('Debtor report exported');
   };
 
-  const totals = processedStudents.reduce((acc, s) => {
-    const current = s.fee_records?.find((f: any) => f.term === selectedTerm && f.session === selectedSession);
-    const carried = s.fee_records?.filter((f: any) => f.term !== selectedTerm || f.session !== selectedSession)
-                               .reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
+  const totals = React.useMemo(() => {
+    const currentDebtCount = students.filter(s => {
+      const record = s.fee_records?.find((f: any) => f.term === selectedTerm && f.session === selectedSession);
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return (expected - paid) > 0;
+    }).length;
+
+    const partialDebtorsCount = students.filter(s => {
+      const record = s.fee_records?.find((f: any) => f.term === selectedTerm && f.session === selectedSession);
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return paid > 0 && paid < expected;
+    }).length;
+
+    const stats = processedStudents.reduce((acc, s) => {
+      const current = s.fee_records?.find((f: any) => f.term === selectedTerm && f.session === selectedSession);
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (current ? Number(current.total_amount) : 0);
+      const paid = current ? Number(current.amount_paid) : 0;
+      const currentBalance = expected - Number(paid);
+
+      const carried = s.fee_records?.filter((f: any) => f.term !== selectedTerm || f.session !== selectedSession)
+                                 .reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
+      
+      return {
+        currentDebt: acc.currentDebt + currentBalance,
+        carriedOver: acc.carriedOver + carried,
+        total: acc.total + currentBalance + carried
+      };
+    }, { currentDebt: 0, carriedOver: 0, total: 0 });
+
+    const totalStudents = students.length || 1;
+    const fullyPaidCount = students.filter(s => {
+      const record = s.fee_records?.find((f: any) => f.term === selectedTerm && f.session === selectedSession);
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return expected > 0 && paid >= expected;
+    }).length;
     
+    const complianceRating = Math.round((fullyPaidCount / totalStudents) * 100);
+
     return {
-      currentDebt: acc.currentDebt + (current ? Number(current.balance) : 0),
-      carriedOver: acc.carriedOver + carried,
-      total: acc.total + (s.fee_records?.reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0)
+      ...stats,
+      debtorsCount: currentDebtCount,
+      partialDebtorsCount,
+      complianceRating
     };
-  }, { currentDebt: 0, carriedOver: 0, total: 0 });
+  }, [processedStudents, students, selectedTerm, selectedSession]);
 
   return (
     <div className="space-y-6">
@@ -221,35 +270,65 @@ export default function DebtManagement() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-6 bg-purple-50 border border-purple-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-brand-purple shadow-sm border border-purple-100">
-            <TrendingUp className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-brand-purple/80 font-bold tracking-widest uppercase">Term Debt</p>
-            <p className="text-2xl font-black text-brand-purple">₦{totals.currentDebt.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-600 shadow-sm border border-amber-100">
-            <History className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-amber-600/80 font-bold tracking-widest uppercase">Carried Over</p>
-            <p className="text-2xl font-black text-amber-900">₦{totals.carriedOver.toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="p-6 bg-rose-50 border border-rose-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-rose-600 shadow-sm border border-rose-100">
-            <AlertTriangle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-rose-600/80 font-bold tracking-widest uppercase">Total Debt</p>
-            <p className="text-2xl font-black text-rose-900">₦{totals.total.toLocaleString()}</p>
-          </div>
-        </div>
-      </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-6 bg-slate-900 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-slate-200">
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                    <Users className="w-5 h-5 text-slate-300" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-50">Debtors</p>
+                    <p className="text-2xl font-black">{totals.debtorsCount}</p>
+                  </div>
+                </div>
+                <div className="p-6 bg-amber-500 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-amber-100">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">Partial</p>
+                    <p className="text-2xl font-black">{totals.partialDebtorsCount}</p>
+                  </div>
+                </div>
+                <div className="p-6 bg-rose-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-rose-100">
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60">Total Debt</p>
+                    <p className="text-2xl font-black text-white">₦{totals.total.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="p-6 bg-blue-600 rounded-3xl text-white flex items-center gap-4 shadow-xl shadow-blue-100">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">Compliance</p>
+                    <p className="text-2xl font-black">{totals.complianceRating}%</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-6 bg-purple-50 border border-purple-100 rounded-3xl flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-brand-purple shadow-sm border border-purple-100">
+                    <TrendingUp className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-brand-purple/80 font-bold tracking-widest uppercase">Term Debt</p>
+                    <p className="text-2xl font-black text-brand-purple">₦{totals.currentDebt.toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className="p-6 bg-amber-50 border border-amber-100 rounded-3xl flex items-center gap-4">
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-600 shadow-sm border border-amber-100">
+                    <History className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-amber-600/80 font-bold tracking-widest uppercase">Carried Over</p>
+                    <p className="text-2xl font-black text-amber-900">₦{totals.carriedOver.toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
 
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row gap-4">
         <div className="flex-1 relative">
@@ -337,15 +416,19 @@ export default function DebtManagement() {
                 const currentRecord = student.fee_records?.find((f: any) => 
                   f.term === selectedTerm && f.session === selectedSession
                 );
-                const totalBalance = student.fee_records?.reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
+                const standard = feeStandards.find(s => s.class_id === student.class_id);
+                const expected = standard?.amount || (currentRecord ? Number(currentRecord.total_amount) : 0);
+                const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+                const currentBalance = expected - paid;
+
                 const carriedOver = student.fee_records?.filter((f: any) => f.term !== selectedTerm || f.session !== selectedSession)
                                                .reduce((sum: number, f: any) => sum + Number(f.balance), 0) || 0;
                 
-                const expected = currentRecord ? Number(currentRecord.total_amount) : 0;
-                const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+                const totalBalance = currentBalance + carriedOver;
+                
                 const isPaid = expected > 0 && paid >= expected;
                 const isPartial = paid > 0 && paid < expected;
-                const isNotPaid = !currentRecord || (expected > 0 && paid === 0);
+                const isNotPaid = paid === 0;
 
                 return (
                   <tr 

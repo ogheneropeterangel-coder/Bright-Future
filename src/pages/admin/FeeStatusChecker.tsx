@@ -28,10 +28,11 @@ export default function FeeStatusChecker() {
   const { settings } = useAuth();
   const [students, setStudents] = useState<any[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [feeStandards, setFeeStandards] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
-  const [filterType, setFilterType] = useState<'all' | 'paid' | 'owing'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'paid' | 'partial' | 'owing'>('all');
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [selectedTerm, setSelectedTerm] = useState<string>('');
   
@@ -45,20 +46,27 @@ export default function FeeStatusChecker() {
     if (settings) {
       setSelectedSession(settings.current_session);
       setSelectedTerm(settings.current_term);
-      fetchInitialData();
     }
   }, [settings]);
 
   useEffect(() => {
     if (selectedSession && selectedTerm) {
+      fetchInitialData();
       fetchStudents();
     }
   }, [selectedClass, selectedSession, selectedTerm]);
 
   async function fetchInitialData() {
     try {
-      const { data: classesData } = await supabase.from('classes').select('*').order('class_name');
+      const [
+        { data: classesData },
+        { data: standardsData }
+      ] = await Promise.all([
+        supabase.from('classes').select('*').order('class_name'),
+        supabase.from('fee_standards').select('*').eq('term', selectedTerm).eq('session', selectedSession)
+      ]);
       setClasses(classesData || []);
+      setFeeStandards(standardsData || []);
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -122,19 +130,22 @@ export default function FeeStatusChecker() {
     const record = student.fee_records?.find((f: any) => 
       f.term === selectedTerm && f.session === selectedSession
     );
+    const standard = feeStandards.find(s => s.class_id === student.class_id);
     const matchesSearch = `${student.first_name} ${student.last_name} ${student.admission_number}`
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
     
     if (!matchesSearch) return false;
     
-    if (filterType === 'paid') {
-      return record && Number(record.amount_paid) >= Number(record.total_amount) && Number(record.total_amount) > 0;
-    }
-    if (filterType === 'owing') {
-      const balance = record ? Number(record.total_amount) - Number(record.amount_paid) : 0;
-      return !record || balance > 0;
-    }
+    const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+    const paid = record ? Number(record.amount_paid) : 0;
+    const isPaid = expected > 0 && paid >= expected;
+    const isPartial = paid > 0 && paid < expected;
+    const isOwing = isPartial || paid === 0; // Adjusted based on user feedback: anyone not fully paid is in debt
+
+    if (filterType === 'paid') return isPaid;
+    if (filterType === 'partial') return isPartial;
+    if (filterType === 'owing') return isOwing; 
     return true;
   });
 
@@ -166,14 +177,28 @@ export default function FeeStatusChecker() {
       const record = s.fee_records?.find((f: any) => 
         f.term === selectedTerm && f.session === selectedSession
       );
-      return record && Number(record.amount_paid) >= Number(record.total_amount) && Number(record.total_amount) > 0;
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return expected > 0 && paid >= expected;
     }).length,
-    owing: processedStudents.filter(s => {
+    partial: processedStudents.filter(s => {
       const record = s.fee_records?.find((f: any) => 
         f.term === selectedTerm && f.session === selectedSession
       );
-      const balance = record ? Number(record.total_amount) - Number(record.amount_paid) : 0;
-      return !record || balance > 0;
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return paid > 0 && paid < expected;
+    }).length,
+    notPaid: processedStudents.filter(s => {
+      const record = s.fee_records?.find((f: any) => 
+        f.term === selectedTerm && f.session === selectedSession
+      );
+      const standard = feeStandards.find(st => st.class_id === s.class_id);
+      const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
+      const paid = record ? Number(record.amount_paid) : 0;
+      return paid === 0;
     }).length
   };
 
@@ -218,24 +243,22 @@ export default function FeeStatusChecker() {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-100">
-            <CheckCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-emerald-600/80 font-bold tracking-widest uppercase">Verified Full Payments</p>
-            <p className="text-2xl font-black text-emerald-900">{totals.paid} Students</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Students</p>
+          <p className="text-2xl font-black text-slate-900">{processedStudents.length}</p>
         </div>
-        <div className="p-6 bg-rose-50 border border-rose-100 rounded-3xl flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-rose-600 shadow-sm border border-rose-100">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="text-sm text-rose-600/80 font-bold tracking-widest uppercase">Total Outstanding / Owing</p>
-            <p className="text-2xl font-black text-rose-900">{totals.owing} Students</p>
-          </div>
+        <div className="p-6 bg-emerald-50 rounded-3xl border border-emerald-100 shadow-sm">
+          <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Fully Paid</p>
+          <p className="text-2xl font-black text-emerald-900">{totals.paid}</p>
+        </div>
+        <div className="p-6 bg-amber-50 rounded-3xl border border-amber-100 shadow-sm">
+          <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">Partially Paid</p>
+          <p className="text-2xl font-black text-amber-900">{totals.partial}</p>
+        </div>
+        <div className="p-6 bg-rose-50 rounded-3xl border border-rose-100 shadow-sm">
+          <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">Not Paid / Owing</p>
+          <p className="text-2xl font-black text-rose-900">{totals.notPaid}</p>
         </div>
       </div>
 
@@ -275,6 +298,12 @@ export default function FeeStatusChecker() {
               PAID
             </button>
             <button
+              onClick={() => setFilterType('partial')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${filterType === 'partial' ? 'bg-amber-500 text-white shadow-lg shadow-amber-100' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              PARTIAL
+            </button>
+            <button
               onClick={() => setFilterType('owing')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${filterType === 'owing' ? 'bg-brand-purple text-white shadow-lg shadow-purple-100' : 'text-slate-500 hover:bg-slate-50'}`}
             >
@@ -306,19 +335,23 @@ export default function FeeStatusChecker() {
                 const record = student.fee_records?.find((f: any) => 
                   f.term === selectedTerm && f.session === selectedSession
                 );
+                const standard = feeStandards.find(s => s.class_id === student.class_id);
                 
-                const expected = record ? Number(record.total_amount) : 0;
+                const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
                 const paid = record ? Number(record.amount_paid) : 0;
                 const currentBalance = expected - paid;
                 
                 const isPaid = expected > 0 && paid >= expected;
                 const isPartial = paid > 0 && paid < expected;
-                const isNotPaid = !record || (expected > 0 && paid === 0);
+                const isNotPaid = expected > 0 && paid === 0;
                 
                 // For "Total Debt" across all terms
-                const totalDebt = (student.fee_records || []).reduce((sum: number, r: any) => 
-                  sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
-                );
+                const totalDebt = (student.fee_records || []).reduce((sum: number, r: any) => {
+                  if (r.term === selectedTerm && r.session === selectedSession) {
+                    return sum + Math.max(0, currentBalance);
+                  }
+                  return sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid));
+                }, 0);
                 
                 const isLocked = record ? record.results_locked : true;
 
@@ -497,18 +530,16 @@ export default function FeeStatusChecker() {
                         const record = selectedStudent?.fee_records?.find((f: any) => 
                           f.term === selectedTerm && f.session === selectedSession
                         );
-                        const expected = record ? Number(record.total_amount) : 0;
+                        const standard = feeStandards.find(s => s.class_id === selectedStudent?.class_id);
+                        const expected = standard?.amount || (record ? Number(record.total_amount) : 0);
                         const paid = record ? Number(record.amount_paid) : 0;
                         const balance = expected - paid;
-                        const totalDebt = (selectedStudent?.fee_records || []).reduce((sum: number, r: any) => 
-                          sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
-                        );
                         
                         return (
                           <div className="grid grid-cols-3 gap-4">
                             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
                               <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Expected (Term)</p>
-                              <p className="text-sm font-black text-slate-900">₦{expected.toLocaleString()}</p>
+                              <p className="text-sm font-black text-slate-900">{expected > 0 ? `₦${expected.toLocaleString()}` : "NO FEE SET"}</p>
                             </div>
                             <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
                               <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-1">Paid (Term)</p>
@@ -516,7 +547,9 @@ export default function FeeStatusChecker() {
                             </div>
                             <div className={`p-4 rounded-2xl border text-center ${balance > 0 ? 'bg-rose-50 border-rose-100' : 'bg-slate-50 border-slate-100'}`}>
                               <p className={`text-[8px] font-black uppercase tracking-widest mb-1 ${balance > 0 ? 'text-rose-400' : 'text-slate-400'}`}>Balance (Term)</p>
-                              <p className={`text-sm font-black ${balance > 0 ? 'text-rose-600' : 'text-slate-600'}`}>₦{balance.toLocaleString()}</p>
+                              <p className={`text-sm font-black ${balance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {balance > 0 ? `Owes ₦${balance.toLocaleString()}` : expected > 0 ? 'FULLY PAID' : 'SETTLED'}
+                              </p>
                             </div>
                           </div>
                         );
@@ -534,9 +567,20 @@ export default function FeeStatusChecker() {
                         </div>
                         
                         {(() => {
-                           const totalDebt = (selectedStudent?.fee_records || []).reduce((sum: number, r: any) => 
-                             sum + (Number(r.total_amount) - Number(r.amount_paid)), 0
+                           const currentRecord = selectedStudent?.fee_records?.find((f: any) => 
+                             f.term === selectedTerm && f.session === selectedSession
                            );
+                           const standard = feeStandards.find(s => s.class_id === selectedStudent?.class_id);
+                           const currentExpected = standard?.amount || (currentRecord ? Number(currentRecord.total_amount) : 0);
+                           const currentPaid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+                           const currentTermBalance = Math.max(0, currentExpected - currentPaid);
+
+                           const totalDebt = (selectedStudent?.fee_records || []).reduce((sum: number, r: any) => {
+                             if (r.term === selectedTerm && r.session === selectedSession) {
+                               return sum + currentTermBalance;
+                             }
+                             return sum + Math.max(0, Number(r.total_amount) - Number(r.amount_paid));
+                           }, 0) || (currentTermBalance);
                         
                           return (
                             <div className={`p-6 rounded-3xl flex items-center gap-4 shadow-xl ${
@@ -550,7 +594,7 @@ export default function FeeStatusChecker() {
                                   {totalDebt > 0 ? 'Total Outstanding' : 'Fully Settled'}
                                 </p>
                                 <p className="text-xl font-black tracking-tight">
-                                  {totalDebt > 0 ? `₦${totalDebt.toLocaleString()}` : 'CLEARED'}
+                                  {totalDebt > 0 ? `₦${totalDebt.toLocaleString()} Debt` : 'FULLY SETTLED'}
                                 </p>
                               </div>
                             </div>

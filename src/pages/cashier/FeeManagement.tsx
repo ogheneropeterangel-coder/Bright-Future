@@ -115,6 +115,12 @@ export default function FeeManagement() {
           f.term === selectedTerm && f.session === selectedSession
         );
         
+        // Prioritize expected amount from standards
+        const standard = feeStandards.find((s: any) => s.class_id === student.class_id);
+        const expected = standard?.amount || (currentRecord ? Number(currentRecord.total_amount) : 0);
+        const paid = currentRecord ? Number(currentRecord.amount_paid) : 0;
+        const currentBalance = expected - Number(paid);
+
         // Calculate debt from OTHER terms/sessions
         const previousDebt = records
           .filter((r: any) => !(r.term === selectedTerm && r.session === selectedSession))
@@ -123,18 +129,22 @@ export default function FeeManagement() {
         return {
           ...student,
           current_record: currentRecord,
+          expected_amount: expected,
+          amount_paid: paid,
           previous_debt: previousDebt,
-          total_owing: (currentRecord ? Number(currentRecord.total_amount) - Number(currentRecord.amount_paid) : 0) + previousDebt
+          total_owing: currentBalance + previousDebt
         };
       });
 
       let filteredData = studentsWithDebt;
       if (filterStatus !== 'all') {
         filteredData = filteredData.filter(student => {
-          const record = student.current_record;
-          if (filterStatus === 'Paid') return record?.status === 'Paid';
-          if (filterStatus === 'Partial') return record?.status === 'Partial';
-          if (filterStatus === 'Not Paid') return !record || record.status === 'Not Paid';
+          const expected = student.expected_amount;
+          const paid = student.amount_paid;
+          
+          if (filterStatus === 'Paid') return expected > 0 && paid >= expected;
+          if (filterStatus === 'Partial') return paid > 0 && paid < expected;
+          if (filterStatus === 'Not Paid') return paid === 0;
           return true;
         });
       }
@@ -174,11 +184,11 @@ export default function FeeManagement() {
       f.term === settings?.current_term && f.session === settings?.current_session
     );
     
-    // Find expected amount from standards if no record exists
+    // Prioritize expected amount from standards
     const standard = feeStandards.find(s => s.class_id === student.class_id);
-    const defaultTotal = standard?.amount || 0;
+    const expectedFromStandard = standard?.amount || 0;
     const currentPaid = record?.amount_paid || 0;
-    const totalAmount = record?.total_amount || defaultTotal;
+    const totalAmount = expectedFromStandard || record?.total_amount || 0;
     const balance = Number(totalAmount) - Number(currentPaid);
 
     setSelectedStudent(student);
@@ -204,7 +214,16 @@ export default function FeeManagement() {
 
   async function updateModalTotals() {
     try {
-      const { data: record, error } = await supabase
+      // Try getting from standard first (admin source of truth)
+      const { data: standard } = await supabase
+        .from('fee_standards')
+        .select('amount')
+        .eq('class_id', selectedStudent.class_id)
+        .eq('term', paymentData.term)
+        .eq('session', paymentData.session)
+        .maybeSingle();
+
+      const { data: record } = await supabase
         .from('fee_records')
         .select('*')
         .eq('student_id', selectedStudent.id)
@@ -212,30 +231,14 @@ export default function FeeManagement() {
         .eq('session', paymentData.session)
         .maybeSingle();
 
-      if (error) throw error;
+      const totalAmount = standard?.amount || record?.total_amount || 0;
+      const amountPaid = record?.amount_paid || 0;
 
-      if (record) {
-        setPaymentData(prev => ({
-          ...prev,
-          total_amount: record.total_amount.toString(),
-          amount: (Number(record.total_amount) - Number(record.amount_paid)).toString()
-        }));
-      } else {
-        // Try getting from standard
-        const { data: standard } = await supabase
-          .from('fee_standards')
-          .select('amount')
-          .eq('class_id', selectedStudent.class_id)
-          .eq('term', paymentData.term)
-          .eq('session', paymentData.session)
-          .maybeSingle();
-
-        setPaymentData(prev => ({
-          ...prev,
-          total_amount: (standard?.amount || 0).toString(),
-          amount: (standard?.amount || 0).toString()
-        }));
-      }
+      setPaymentData(prev => ({
+        ...prev,
+        total_amount: totalAmount.toString(),
+        amount: (Number(totalAmount) - Number(amountPaid)).toString()
+      }));
 
       // Re-calculate previous debt excluding the newly selected term/session
       const { data: allRecords } = await supabase
@@ -476,16 +479,15 @@ export default function FeeManagement() {
                     </tr>
                   ) : (
                     filteredStudents.map((student) => {
-                      const record = student.current_record;
-                      const expected = Number(record?.total_amount || 0);
-                      const paid = Number(record?.amount_paid || 0);
+                      const expected = student.expected_amount;
+                      const paid = student.amount_paid;
                       
                       const isPaid = expected > 0 && paid >= expected;
                       const isPartial = paid > 0 && paid < expected;
-                      const isNotPaid = !record || (expected > 0 && paid === 0);
+                      const isNotPaid = paid === 0;
                       
                       const totalBalance = student.total_owing || 0;
-                      const isLocked = record ? record.results_locked : true;
+                      const isLocked = student.current_record ? student.current_record.results_locked : true;
 
                       return (
                         <tr key={student.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -504,7 +506,7 @@ export default function FeeManagement() {
                                   </p>
                                   {(expected - paid) > 0 && (
                                     <span className="px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[8px] font-black rounded uppercase">
-                                      Owes ₦{(expected - paid).toLocaleString()}
+                                      Term Debt ₦{(expected - paid).toLocaleString()}
                                     </span>
                                   )}
                                 </div>
@@ -577,8 +579,8 @@ export default function FeeManagement() {
                       </td>
                           <td className="px-8 py-4">
                             <button
-                              onClick={() => record && toggleLock(student.id, record)}
-                              disabled={!record}
+                              onClick={() => student.current_record && toggleLock(student.id, student.current_record)}
+                              disabled={!student.current_record}
                               className={`flex items-center gap-2 group transition-all ${
                                 isLocked ? 'text-slate-400' : 'text-brand-purple'
                               }`}
@@ -600,16 +602,16 @@ export default function FeeManagement() {
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 onClick={() => openPaymentModal(student)}
-                                className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm"
-                                title="Process Payment"
+                                className="px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-brand-purple transition-all shadow-lg shadow-slate-200 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
                               >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-3.5 h-3.5" />
+                                Add Payment
                               </button>
                               <button
-                                onClick={() => record && fetchHistory(record.id)}
-                                disabled={!record}
+                                onClick={() => student.current_record && fetchHistory(student.current_record.id)}
+                                disabled={!student.current_record}
                                 className="p-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-brand-purple hover:text-white transition-all shadow-sm disabled:opacity-30"
-                                title="View Invoices"
+                                title="View History"
                               >
                                 <History className="w-4 h-4" />
                               </button>
@@ -699,7 +701,7 @@ export default function FeeManagement() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Amount Due (Total)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Term Total Fee</label>
                     <div className="relative">
                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₦</div>
                       <input
@@ -712,17 +714,32 @@ export default function FeeManagement() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Paying Now</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Term Balance Due</label>
                     <div className="relative">
-                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₦</div>
-                      <input
-                        type="number"
-                        value={paymentData.amount}
-                        onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
-                        placeholder="0.00"
-                        className="w-full pl-8 pr-4 py-4 bg-emerald-50 border-none rounded-2xl focus:ring-4 focus:ring-emerald-100 outline-none font-black text-emerald-900 placeholder:text-emerald-300 transition-all"
-                      />
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-rose-400 font-black">₦</div>
+                      <div className="w-full pl-8 pr-4 py-4 bg-rose-50 border-none rounded-2xl font-black text-rose-700">
+                        {(() => {
+                          const currentPaid = selectedStudent?.fee_records?.find((f: any) => 
+                            f.term === paymentData.term && f.session === paymentData.session
+                          )?.amount_paid || 0;
+                          return (Number(paymentData.total_amount) - Number(currentPaid)).toLocaleString();
+                        })()}
+                      </div>
                     </div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest px-1">Amount Paying Now</label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-black">₦</div>
+                    <input
+                      type="number"
+                      value={paymentData.amount}
+                      onChange={(e) => setPaymentData({...paymentData, amount: e.target.value})}
+                      placeholder="0.00"
+                      className="w-full pl-8 pr-4 py-4 bg-emerald-50 border-2 border-emerald-100 rounded-2xl focus:ring-4 focus:ring-emerald-100 outline-none font-black text-emerald-900 placeholder:text-emerald-300 transition-all text-xl"
+                    />
                   </div>
                 </div>
 
@@ -887,7 +904,7 @@ export default function FeeManagement() {
                                 {balance > 0 ? 'Balance Owing' : 'Fully Paid'}
                               </p>
                               <p className="text-xl font-black tracking-tight">
-                                {balance > 0 ? `₦${balance.toLocaleString()}` : 'CLEARED'}
+                                {balance > 0 ? `₦${balance.toLocaleString()} Due` : 'FULLY PAID'}
                               </p>
                             </div>
                           </div>
