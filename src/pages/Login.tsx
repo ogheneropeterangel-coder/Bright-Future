@@ -1,37 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 import { GraduationCap, Mail, Lock, Loader2, School, Sparkles } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 import { motion } from 'motion/react';
 
 export default function Login() {
+  const { settings } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [schoolName, setSchoolName] = useState('Bright Future Academy');
-  const [schoolMotto, setSchoolMotto] = useState('Knowledge is Power');
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchSchoolSettings();
-  }, []);
+  const schoolName = settings?.school_name || 'School Portal';
+  const schoolMotto = settings?.school_motto || 'Welcome';
+  const logoUrl = settings?.school_logo_url || null;
 
-  async function fetchSchoolSettings() {
-    try {
-      const { data, error } = await supabase.from('settings').select('school_name, school_logo_url, school_motto').single();
-      if (data) {
-        setSchoolName(data.school_name);
-        setLogoUrl(data.school_logo_url);
-        if (data.school_motto) {
-          setSchoolMotto(data.school_motto);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to fetch school settings');
+  useEffect(() => {
+    if (settings?.school_name) {
+      document.title = `${settings.school_name} | Login`;
     }
-  }
+  }, [settings?.school_name]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -171,163 +161,118 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-milk p-4 relative overflow-hidden font-sans">
-      {/* Futuristic Background Layers */}
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 relative overflow-hidden font-sans text-white">
+      {/* Background Image of Student with opacity & brand color blend */}
       <div className="absolute inset-0 z-0">
-        {/* Deep Background Image (Students) */}
-        <div className="absolute inset-0 z-[-2] opacity-20">
-          <img 
-            src="https://images.unsplash.com/photo-1544717297-fa95b9ee9623?q=80&w=2000&auto=format&fit=crop" 
-            alt="Students background" 
-            className="w-full h-full object-cover object-center grayscale mix-blend-multiply"
-          />
-        </div>
-        
-        {/* Animated Grid Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#7c3aed_1px,transparent_1px),linear-gradient(to_bottom,#7c3aed_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-[0.05]" />
-        
-        {/* Dynamic Brand Orbs */}
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.3, 1],
-            x: [0, 80, 0],
-            y: [0, 40, 0],
-            rotate: [0, 45, 0]
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-20 -left-20 w-[45rem] h-[45rem] bg-brand-purple/15 rounded-full blur-[140px]"
+        <img 
+          src="https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=2070&auto=format&fit=crop" 
+          alt="Student Background" 
+          className="w-full h-full object-cover opacity-40 mix-blend-overlay"
         />
-        <motion.div 
-          animate={{ 
-            scale: [1, 1.4, 1],
-            x: [0, -80, 0],
-            y: [0, -40, 0],
-            rotate: [0, -45, 0]
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -bottom-40 -right-40 w-[50rem] h-[50rem] bg-brand-purple/20 rounded-full blur-[160px]"
-        />
-        
-        {/* Milk Glass Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-brand-milk/40 to-brand-milk" />
+        {/* Brand color overlay and dark gradient for depth */}
+        <div className="absolute inset-0 bg-brand-purple/20 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1128]/90 via-[#0a1128]/80 to-brand-purple/40 backdrop-blur-[4px]" />
       </div>
 
-      <Toaster position="top-right" theme="light" />
+      <Toaster position="top-right" theme="dark" />
       
       <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-md w-full bg-white/70 backdrop-blur-3xl rounded-[3.5rem] p-8 md:p-14 border border-white shadow-[0_32px_128px_-16px_rgba(124,58,237,0.15)] relative z-10 mx-auto"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="w-full max-w-[380px] relative z-10"
       >
-        {/* Mobile Header Image (Visible only on small screens) */}
-        <div className="md:hidden w-full h-32 rounded-[2rem] mb-8 overflow-hidden relative border border-white/50">
-          <img 
-            src="https://images.unsplash.com/photo-1509062522246-3755977927d7?q=80&w=800&auto=format&fit=crop" 
-            alt="Learning" 
-            className="w-full h-full object-cover grayscale brightness-110"
-          />
-          <div className="absolute inset-0 bg-brand-purple/20 mix-blend-overlay" />
-          <div className="absolute inset-0 bg-gradient-to-t from-white/80 to-transparent" />
-        </div>
+        {/* The Glassmorphism Card */}
+        <div className="relative bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.15] rounded-[2rem] p-10 pb-8 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+          {/* Neo glowing edges (simulating the side lighting from the image) */}
+          <div className="absolute top-1/3 -left-[1px] w-[2px] h-24 bg-gradient-to-b from-transparent via-cyan-400/90 to-transparent shadow-[0_0_15px_rgba(34,211,238,0.9)]" />
+          <div className="absolute bottom-[10%] -right-[1px] w-[2px] h-20 bg-gradient-to-b from-transparent via-cyan-400/60 to-transparent shadow-[0_0_10px_rgba(34,211,238,0.6)]" />
+          <div className="absolute -top-20 -left-20 w-40 h-40 bg-brand-purple/30 rounded-full blur-[60px]" />
+          <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-cyan-500/20 rounded-full blur-[60px]" />
 
-        <div className="flex flex-col items-center mb-12">
-          <motion.div 
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-24 h-24 bg-brand-purple rounded-[2.5rem] flex items-center justify-center mb-8 shadow-2xl shadow-brand-purple/30 relative group overflow-hidden"
-          >
-            {logoUrl ? (
-              <img src={logoUrl} alt="Logo" className="w-full h-full object-contain p-3" />
-            ) : (
-              <School className="w-12 h-12 text-white" />
-            )}
-            <div className="absolute -inset-2 bg-brand-purple/20 rounded-[2.2rem] blur animate-pulse group-hover:bg-brand-purple/40 transition-colors" />
-          </motion.div>
-          
-          <div className="text-center">
-            <h1 className="text-4xl font-black text-brand-slate tracking-tighter mb-2 uppercase leading-none">
+          <div className="flex flex-col items-center mb-8 relative z-10 text-center">
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              className="w-24 h-24 rounded-full border border-cyan-400/50 flex items-center justify-center p-2 mb-6 shadow-[0_0_15px_rgba(34,211,238,0.1)] bg-white/5"
+            >
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+              ) : (
+                <School className="w-10 h-10 text-cyan-200 opacity-80" strokeWidth={1} />
+              )}
+            </motion.div>
+            
+            <h1 className="text-xl font-medium tracking-wide text-white/90 mb-1">
               {schoolName}
             </h1>
-            <div className="flex items-center justify-center gap-3">
-              <div className="h-px w-8 bg-brand-purple/20" />
-              <p className="text-[10px] font-black text-brand-purple uppercase tracking-[0.4em] opacity-90">{schoolMotto}</p>
-              <div className="h-px w-8 bg-brand-purple/20" />
-            </div>
+            <p className="text-[10px] font-light text-cyan-200/70 tracking-[0.2em]">{schoolMotto}</p>
           </div>
-        </div>
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-brand-slate/40 uppercase tracking-[0.2em] ml-2">Access Portal ID</label>
+          <form onSubmit={handleLogin} className="space-y-4 relative z-10 w-full mb-8">
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                <Mail className="w-4 h-4 text-slate-300 group-focus-within:text-brand-purple transition-colors" />
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="w-4 h-4 text-white/70 group-focus-within:text-cyan-300 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
               </div>
               <input
                 type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                className="w-full pl-14 pr-6 py-4.5 bg-white/40 border border-slate-100/50 rounded-[1.8rem] focus:ring-4 focus:ring-brand-purple/5 focus:border-brand-purple focus:bg-white outline-none transition-all text-brand-slate font-bold text-sm placeholder:text-slate-300 placeholder:font-medium"
-                placeholder="Username or Reg No."
+                className="w-full pl-11 pr-4 py-3.5 bg-black/20 border-none rounded-sm focus:ring-1 focus:ring-cyan-400/50 focus:bg-black/30 outline-none transition-all text-white font-medium text-[13px] placeholder:text-white/60"
+                placeholder="Username"
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-brand-slate/40 uppercase tracking-[0.2em] ml-2">Security Hash</label>
             <div className="relative group">
-              <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none">
-                <Lock className="w-4 h-4 text-slate-300 group-focus-within:text-brand-purple transition-colors" />
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                 <svg className="w-4 h-4 text-white/70 group-focus-within:text-cyan-300 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0110 0v4"></path>
+                </svg>
               </div>
               <input
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-14 pr-6 py-4.5 bg-white/40 border border-slate-100/50 rounded-[1.8rem] focus:ring-4 focus:ring-brand-purple/5 focus:border-brand-purple focus:bg-white outline-none transition-all text-brand-slate font-bold text-sm placeholder:text-slate-300 placeholder:font-medium"
-                placeholder="••••••••"
+                className="w-full pl-11 pr-4 py-3.5 bg-black/20 border-none rounded-sm focus:ring-1 focus:ring-cyan-400/50 focus:bg-black/30 outline-none transition-all text-white text-[13px] tracking-widest placeholder:text-white/60 placeholder:tracking-widest"
+                placeholder="************"
               />
             </div>
-          </div>
 
-          <motion.button
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.98 }}
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-purple hover:bg-purple-700 text-white font-black py-5 rounded-[2rem] shadow-xl shadow-brand-purple/20 transition-all flex items-center justify-center gap-4 disabled:opacity-50 mt-8 text-[11px] uppercase tracking-[0.3em] group"
-          >
-            {loading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <span>Initialize Session</span>
-                <Sparkles className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-              </>
-            )}
-          </motion.button>
-        </form>
-
-        <div className="mt-12 pt-10 border-t border-brand-purple/5 text-center space-y-8">
-          <div className="space-y-3">
-            <p className="text-xs text-slate-400 font-medium">
-              New faculty member? <Link to="/register" className="text-brand-purple font-black hover:text-purple-700 transition-colors border-b-2 border-brand-purple/10 hover:border-brand-purple pb-0.5">Create Account</Link>
-            </p>
-            <p className="text-[10px] text-slate-400 font-bold group cursor-pointer hover:text-brand-slate transition-colors uppercase tracking-widest">
-              Forgotten ID <span className="text-brand-purple/50 mx-2">•</span> <span className="hover:text-brand-purple">Contact Registry</span>
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-8">
-            <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-brand-purple animate-pulse shadow-[0_0_12px_rgba(124,58,237,0.5)]" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">Neural Sync</span>
+            <div className="flex items-center justify-between pt-2">
+              <label className="flex items-center gap-2 cursor-pointer group">
+                <div className="w-3.5 h-3.5 rounded-sm bg-black/30 border border-white/20 flex items-center justify-center group-hover:border-cyan-400/50 overflow-hidden">
+                   <div className="w-2.5 h-2.5 bg-white/80 rounded-sm opacity-100" />
+                </div>
+                <span className="text-[11px] text-white/70 group-hover:text-white/90 transition-colors">Remember me</span>
+              </label>
+              <a href="#" className="text-[11px] text-white/70 hover:text-cyan-300 transition-colors italic">
+                Forgot Password?
+              </a>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] whitespace-nowrap">Core Secured</span>
-            </div>
+
+            <motion.button
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={loading}
+              className="w-full mt-8 bg-gradient-to-r from-[#064275] to-[#0c66b8] hover:from-[#0a5290] hover:to-[#1777ce] text-white border border-[#1a7ad4]/30 font-medium py-3.5 rounded-md shadow-[0_4px_15px_rgba(12,102,184,0.4)] transition-all flex items-center justify-center gap-2 disabled:opacity-70 text-xs tracking-widest"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <span>LOGIN</span>
+              )}
+            </motion.button>
+          </form>
+          
+          <div className="text-center pt-6">
+            <p className="text-[11px] text-white/40">
+              New faculty member? <Link to="/register" className="text-white/70 hover:text-cyan-300 transition-colors">Create Account</Link>
+            </p>
           </div>
         </div>
       </motion.div>
