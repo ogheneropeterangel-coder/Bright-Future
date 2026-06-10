@@ -81,16 +81,16 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
                 studentLinks;
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-900 text-white border-r border-slate-800">
+    <div className="flex flex-col h-full w-full bg-[#1a1110] text-[#f8f8f8] border-r border-[#BD8E84]/20">
       <div className="p-6 flex items-center gap-3">
-        <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/50 overflow-hidden">
+        <div className="w-10 h-10 bg-[#BD8E84] rounded-xl flex items-center justify-center shadow-lg shadow-[#BD8E84]/20 overflow-hidden">
           {settings?.school_logo_url ? (
-            <img src={settings.school_logo_url} alt="Logo" className="w-full h-full object-contain" />
+            <img src={settings.school_logo_url} alt="Logo" className="w-full h-full object-contain filter drop-shadow-sm" />
           ) : (
-            <GraduationCap className="w-6 h-6 text-white" />
+            <GraduationCap className="w-6 h-6 text-[#f8f8f8]" />
           )}
         </div>
-        <span className="text-xl font-bold tracking-tight truncate">{settings?.school_name || 'Bright Future Academy'}</span>
+        <span className="text-xl font-bold tracking-tight truncate text-[#f8f8f8]">{settings?.school_name || 'School Portal'}</span>
       </div>
 
       <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
@@ -104,8 +104,8 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
               cn(
                 "flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200",
                 isActive 
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/20" 
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  ? "bg-[#BD8E84] text-[#f8f8f8] shadow-lg shadow-[#BD8E84]/20" 
+                  : "text-[#BD8E84]/70 hover:bg-[#BD8E84]/10 hover:text-[#f8f8f8]"
               )
             }
           >
@@ -115,19 +115,19 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 border-t border-[#BD8E84]/20">
         <div className="flex items-center gap-3 px-4 py-3 mb-4">
-          <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-sm font-bold">
+          <div className="w-8 h-8 rounded-full bg-[#BD8E84] flex items-center justify-center text-sm font-bold text-[#f8f8f8]">
             {profile?.name?.[0]?.toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{profile?.name}</p>
-            <p className="text-xs text-slate-500 truncate capitalize">{profile?.role}</p>
+            <p className="text-sm font-medium truncate text-[#f8f8f8]">{profile?.name}</p>
+            <p className="text-xs text-[#BD8E84]/70 truncate capitalize">{profile?.role}</p>
           </div>
         </div>
         <button
           onClick={() => signOut()}
-          className="flex items-center gap-3 w-full px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors"
+          className="flex items-center gap-3 w-full px-4 py-3 text-[#BD8E84]/70 hover:bg-[#BD8E84]/10 hover:text-[#f8f8f8] rounded-lg transition-colors"
         >
           <LogOut className="w-5 h-5" />
           <span className="font-medium">Sign Out</span>
